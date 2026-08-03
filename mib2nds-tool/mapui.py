@@ -1,0 +1,574 @@
+#!/usr/bin/env python3
+"""mapui.py -- local web UI to check MIB2 map packages.
+
+Pick a downloaded map (folder with `maps/`, a `.zip` or a `.7z`), get an
+instant country-coverage check, and optionally convert it to enable
+place-name search and a coverage map. Also:
+
+  * Update-check: known releases + download links (VW navigation-maps
+    server), with an online probe and a resumable download into downloads/.
+  * SD-updater tab: backup + install a chosen package onto the MIB2 SD
+    card (rsync + 7z), including the Seat OVERALL.NDS workaround.
+  * Cleanup tab: remove derived data in _work/ and extracted packages.
+
+Run:
+    mib2nds-tool/.venv/bin/python mib2nds-tool/mapui.py [--port 5000]
+Then open http://127.0.0.1:5000
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+import traceback
+import uuid
+
+from werkzeug.serving import make_server
+
+from flask import Flask, jsonify, render_template, request, send_file
+
+import mapdata
+import updates
+
+sys.path.insert(0, os.path.join(mapdata.PROJECT_ROOT, "sd-updater"))
+import update_sd  # noqa: E402
+
+app = Flask(__name__)
+
+_SERVER = None
+app.json.ensure_ascii = False
+
+JOBS = {}
+JOBS_LOCK = threading.Lock()
+
+
+def _expand(path):
+    if not path:
+        return ""
+    return os.path.expanduser(str(path).strip().strip('"').strip("'"))
+
+
+def _search_ready(nds_out):
+    return os.path.exists(os.path.join(nds_out, "PRODUCT", "PRODUCT.sqlite"))
+
+
+def _load_map(path):
+    source = mapdata.resolve_source(path)
+    nds_out = mapdata.nds_out_dir(source)
+    if not _search_ready(nds_out):
+        raise mapdata.MapError(
+            "deze map is nog niet geconverteerd; klik eerst op "
+            "'Zoeken + dekkingskaart inschakelen'")
+    return mapdata.Map(source, nds_out, ne_path=mapdata.DEFAULT_NE)
+
+
+def _find_candidates():
+    """Scan the project (root, downloads/, downloads/extracted/) for packages."""
+    cands = []
+    for s in mapdata.find_sources():
+        try:
+            src = mapdata.resolve_source(s["path"])
+            name = src.name
+        except mapdata.MapError:
+            name = mapdata._safe_name(s["label"])
+        if name == "STD2_2510_EU1_202525" and _search_ready(
+                os.path.join(mapdata.WORK, "nds_out")):
+            ready = True
+        else:
+            ready = _search_ready(os.path.join(mapdata.WORK,
+                                               "nds_out_" + name))
+        cands.append({"label": s["label"], "path": s["path"],
+                      "kind": s["kind"], "search_ready": ready})
+    return cands
+
+
+@app.get("/")
+def index():
+    return render_template("map.html", candidates=_find_candidates(),
+                           root=mapdata.PROJECT_ROOT)
+
+
+@app.get("/api/maps")
+def api_maps():
+    return jsonify({"ok": True, "candidates": _find_candidates(),
+                    "root": mapdata.PROJECT_ROOT})
+
+
+@app.post("/api/select")
+def api_select():
+    data = request.get_json(force=True, silent=True) or {}
+    path = _expand(data.get("path"))
+    if not path:
+        return jsonify({"ok": False, "error": "geef een pad op"}), 400
+    if not os.path.exists(path):
+        return jsonify({"ok": False, "error": f"pad bestaat niet: {path}"}), 400
+    try:
+        source = mapdata.resolve_source(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    val = mapdata.validate(source)
+    if not val["ok"]:
+        return jsonify({"ok": False, "error": "; ".join(val["errors"]),
+                        "warnings": val["warnings"], "info": val["info"],
+                        "name": source.name, "kind": source.kind, "path": path})
+    nds_out = mapdata.nds_out_dir(source)
+    try:
+        mapdata.ensure_countries(source, nds_out)
+    except Exception as e:
+        return jsonify(
+            {"ok": False, "error": f"landen-check mislukt: {e}\n"
+             f"{traceback.format_exc()}"}), 500
+    regions = mapdata.read_countries(nds_out, val["regions"])
+    for r in regions:
+        r["countries_display"] = [f"{c} ({mapdata.country_name(c)})"
+                                  for c in r["countries"]]
+    all_codes = sorted({c for r in regions for c in r["countries"]})
+    wanted = data.get("wanted")
+    if wanted is not None:
+        wanted = [str(w).upper().strip() for w in wanted if str(w).strip()]
+    try:
+        compat = mapdata.compatibility_check(source, wanted)
+    except Exception as e:
+        return jsonify(
+            {"ok": False, "error": f"compatibiliteitscheck mislukt: {e}\n"
+             f"{traceback.format_exc()}"}), 500
+    return jsonify({
+        "ok": True,
+        "name": source.name,
+        "kind": source.kind,
+        "path": path,
+        "info": val["info"],
+        "warnings": val["warnings"],
+        "regions": regions,
+        "countries": [{"code": c, "name": mapdata.country_name(c)}
+                      for c in all_codes],
+        "compat": compat,
+        "search_ready": _search_ready(nds_out),
+    })
+
+
+@app.post("/api/compat")
+def api_compat():
+    data = request.get_json(force=True, silent=True) or {}
+    path = _expand(data.get("path"))
+    if not path or not os.path.exists(path):
+        return jsonify({"ok": False, "error": "pad bestaat niet"}), 400
+    try:
+        source = mapdata.resolve_source(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    wanted = data.get("wanted")
+    if wanted is not None:
+        wanted = [str(w).upper().strip() for w in wanted if str(w).strip()]
+    try:
+        compat = mapdata.compatibility_check(source, wanted)
+    except Exception as e:
+        return jsonify(
+            {"ok": False, "error": f"compatibiliteitscheck mislukt: {e}\n"
+             f"{traceback.format_exc()}"}), 500
+    return jsonify({"ok": True, "compat": compat})
+
+
+@app.post("/api/convert")
+def api_convert():
+    data = request.get_json(force=True, silent=True) or {}
+    path = _expand(data.get("path"))
+    if not path or not os.path.exists(path):
+        return jsonify({"ok": False, "error": "pad bestaat niet"}), 400
+    try:
+        source = mapdata.resolve_source(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    nds_out = mapdata.nds_out_dir(source)
+    if _search_ready(nds_out):
+        return jsonify({"ok": True, "search_ready": True})
+    job_id = uuid.uuid4().hex
+    state = {"state": "running", "done": 0, "total": 0, "log": [],
+             "error": None, "started": time.time()}
+    with JOBS_LOCK:
+        JOBS[job_id] = state
+
+    def run():
+        try:
+            def log(line):
+                with JOBS_LOCK:
+                    state["log"].append(line)
+
+            def progress(done, total):
+                with JOBS_LOCK:
+                    state["done"] = done
+                    state["total"] = total
+
+            mapdata.ensure_search(source, nds_out, log=log, progress=progress)
+            with JOBS_LOCK:
+                state["state"] = "done"
+        except Exception as e:
+            with JOBS_LOCK:
+                state["state"] = "error"
+                state["error"] = f"{e}\n{traceback.format_exc()}"
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id})
+
+
+@app.get("/api/status/<job_id>")
+def api_status(job_id):
+    with JOBS_LOCK:
+        state = JOBS.get(job_id)
+    if state is None:
+        return jsonify({"ok": False, "error": "onbekende job"}), 404
+    return jsonify({"ok": True, **state, "log_tail": state["log"][-40:]})
+
+
+@app.get("/api/cleanup")
+def api_cleanup_list():
+    items = mapdata.cleanup_candidates()
+    return jsonify({"ok": True, "items": items,
+                    "total_bytes": sum(i["size"] for i in items)})
+
+
+@app.post("/api/cleanup")
+def api_cleanup_delete():
+    data = request.get_json(force=True, silent=True) or {}
+    res = mapdata.cleanup_delete(data.get("paths") or [])
+    return jsonify({"ok": True, **res})
+
+
+@app.get("/api/updates")
+def api_updates():
+    do_check = request.args.get("check") != "0"
+    return jsonify({"ok": True, **updates.registry_status(do_check=do_check)})
+
+
+@app.post("/api/discover")
+def api_discover():
+    data = request.get_json(force=True, silent=True) or {}
+    add = bool(data.get("add"))
+    job_id = uuid.uuid4().hex
+    state = {"state": "running", "done": 0, "total": 0, "log": [],
+             "error": None, "started": time.time()}
+    with JOBS_LOCK:
+        JOBS[job_id] = state
+
+    def run():
+        try:
+            def progress(done, total):
+                with JOBS_LOCK:
+                    state["done"] = done
+                    state["total"] = total
+                    if done % 10 == 0 or done == total:
+                        state["log"].append(f"probe {done}/{total}")
+
+            result = updates.discover_new(add=add, progress=progress)
+            with JOBS_LOCK:
+                state["state"] = "done"
+                state["result"] = result
+                state["done"] = state["total"]
+                state["log"].append(
+                    f"klaar: {result['probed']} URL's gecheckt, "
+                    f"{len(result['found'])} online gevonden")
+        except Exception as e:
+            with JOBS_LOCK:
+                state["state"] = "error"
+                state["error"] = f"{e}\n{traceback.format_exc()}"
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id})
+
+
+@app.post("/api/download")
+def api_download():
+    data = request.get_json(force=True, silent=True) or {}
+    url = data.get("url")
+    if not url:
+        return jsonify({"ok": False, "error": "geef een url op"}), 400
+    pkg = next((p for p in updates.load_registry().get("packages", [])
+                if p.get("url") == url), None)
+    if not pkg:
+        return jsonify({"ok": False, "error": "url niet in de registry"}), 400
+    if updates.local_path(pkg):
+        return jsonify({"ok": False, "error": "bestand staat al in "
+                        "downloads/"}), 400
+    job_id = uuid.uuid4().hex
+    state = {"state": "running", "done": 0, "total": 0, "log": [],
+             "error": None, "started": time.time()}
+    with JOBS_LOCK:
+        JOBS[job_id] = state
+
+    def run():
+        try:
+            def log(line):
+                with JOBS_LOCK:
+                    state["log"].append(line)
+
+            def progress(done, total):
+                with JOBS_LOCK:
+                    state["done"] = done
+                    state["total"] = total
+
+            updates.download(url, progress=progress, log=log)
+            with JOBS_LOCK:
+                state["state"] = "done"
+                state["log"].append("download klaar in downloads/")
+        except Exception as e:
+            with JOBS_LOCK:
+                state["state"] = "error"
+                state["error"] = f"{e}\n{traceback.format_exc()}"
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id})
+
+
+@app.get("/api/sd/status")
+def api_sd_status():
+    sd = update_sd.detect_sd()
+    overall = mapdata.overall_backup_path()
+    plan = mapdata.install_plan()
+    return jsonify({
+        "ok": True,
+        "sd": sd,
+        "overall_backup": overall,
+        "overall_backup_present": bool(overall and os.path.isfile(overall)),
+        "install_steps": plan["steps"],
+        "manual_steps": plan["manual"],
+    })
+
+
+@app.get("/api/sd/sources")
+def api_sd_sources():
+    try:
+        sources = update_sd.list_sources(full=True)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True, "sources": sources})
+
+
+@app.post("/api/sd/install")
+def api_sd_install():
+    data = request.get_json(force=True, silent=True) or {}
+    source_path = _expand(data.get("source"))
+    sd_mount = _expand(data.get("sd")) or None
+    dry_run = bool(data.get("dry_run"))
+    if not source_path or not os.path.exists(source_path):
+        return jsonify({"ok": False, "error": "geen geldig bronpad"}), 400
+    sd = update_sd.detect_sd(sd_mount)
+    if not sd:
+        return jsonify({"ok": False,
+                        "error": "geen MIB2-SD-kaart gevonden (mount met "
+                                 "maps/00/nds/dbinfo.txt)"}), 400
+    weights = {"check": 0, "backup": 35, "extract": 10, "copy": 45,
+               "workaround": 5, "verify": 5}
+    offsets = {}
+    _cum = 0
+    for _s in ("check", "backup", "extract", "copy", "workaround", "verify"):
+        offsets[_s] = _cum
+        _cum += weights[_s]
+    job_id = uuid.uuid4().hex
+    state = {"state": "running", "done": 0, "total": 100, "log": [],
+             "error": None, "phase": None, "eta": None, "started": time.time()}
+    with JOBS_LOCK:
+        JOBS[job_id] = state
+
+    def run():
+        try:
+            def log(line):
+                with JOBS_LOCK:
+                    state["log"].append(line)
+
+            def progress(stage, pct):
+                with JOBS_LOCK:
+                    now = time.time()
+                    if stage != state.get("phase"):
+                        state["stage_start"] = now
+                        state["stage_max"] = 0
+                    state["phase"] = stage
+                    state["stage_max"] = max(state.get("stage_max", 0), pct)
+                    state["done"] = offsets.get(stage, 0) + int(
+                        weights.get(stage, 0) * state["stage_max"] / 100)
+                    frac = state["stage_max"] / 100.0
+                    elapsed = now - state.get("stage_start", now)
+                    eta = None
+                    if frac >= 0.1:
+                        eta = int(max(0, elapsed / frac - elapsed))
+                    state["eta"] = eta
+
+            result = update_sd.install_to_sd(
+                sd["mount"], source_path, progress=progress, log=log,
+                dry_run=dry_run)
+            with JOBS_LOCK:
+                state["state"] = "done"
+                state["result"] = result
+                state["done"] = 100
+                state["phase"] = "done"
+        except Exception as e:
+            with JOBS_LOCK:
+                state["state"] = "error"
+                state["error"] = f"{e}\n{traceback.format_exc()}"
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id, "sd": sd})
+
+
+@app.post("/api/verify-md5")
+def api_verify_md5():
+    data = request.get_json(force=True, silent=True) or {}
+    path = _expand(data.get("path"))
+    try:
+        source = mapdata.resolve_source(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    manifest = source.md5_manifest()
+    if not manifest:
+        return jsonify({"ok": False, "error": "md5-check kan alleen voor "
+                        "uitgepakte mappen met een .md5sum.txt in de "
+                        "pakketmap"}), 400
+    job_id = uuid.uuid4().hex
+    state = {"state": "running", "done": 0, "total": 0, "log": [],
+             "error": None, "manifest": os.path.basename(manifest)}
+    with JOBS_LOCK:
+        JOBS[job_id] = state
+
+    def run():
+        try:
+            proc = subprocess.Popen(
+                ["md5sum", "-c", manifest],
+                cwd=source.maps_root,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1)
+            ok = n = 0
+            for line in proc.stdout:
+                line = line.rstrip()
+                with JOBS_LOCK:
+                    state["log"].append(line)
+                if line.endswith(": OK"):
+                    ok += 1
+                n += 1
+            proc.wait()
+            with JOBS_LOCK:
+                state["state"] = "done"
+                state["ok_count"] = ok
+                state["total"] = n
+        except Exception as e:
+            with JOBS_LOCK:
+                state["state"] = "error"
+                state["error"] = str(e)
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id,
+                    "manifest": os.path.basename(manifest)})
+
+
+@app.get("/api/search")
+def api_search():
+    path = _expand(request.args.get("path"))
+    q = (request.args.get("q") or "").strip()
+    mode = request.args.get("mode", "contains")
+    regions = [int(x) for x in request.args.get("regions", "").split(",")
+               if x.strip()]
+    if not q:
+        return jsonify({"ok": True, "total": 0, "results": []})
+    try:
+        m = _load_map(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    res = mapdata.search(m, q, mode=mode, region_filter=regions or None)
+    return jsonify({"ok": True, **res})
+
+
+@app.get("/api/coverage")
+def api_coverage():
+    path = _expand(request.args.get("path"))
+    try:
+        m = _load_map(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    meta = mapdata.meta_dir(m.source)
+    png = os.path.join(meta, "coverage.png")
+    stats_path = os.path.join(meta, "coverage.json")
+    force = request.args.get("force") == "1"
+    if force or not os.path.exists(png) or not os.path.exists(stats_path):
+        try:
+            stats = mapdata.render_coverage(
+                m, png, dpi=int(request.args.get("dpi", 130)),
+                ne_path=mapdata.DEFAULT_NE)
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"kaart renderen mislukt: "
+                            f"{e}\n{traceback.format_exc()}"}), 500
+        with open(stats_path, "w") as fh:
+            json.dump(stats, fh, ensure_ascii=False)
+    else:
+        with open(stats_path) as fh:
+            stats = json.load(fh)
+    return jsonify({"ok": True, "stats": stats,
+                    "png": "/api/coverage.png?path=" +
+                           request.args.get("path", "")})
+
+
+@app.get("/api/coverage.png")
+def api_coverage_png():
+    path = _expand(request.args.get("path"))
+    try:
+        m = _load_map(path)
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    meta = mapdata.meta_dir(m.source)
+    png = os.path.join(meta, "coverage_ax.png")
+    if not os.path.exists(png):
+        png = os.path.join(meta, "coverage.png")
+    if not os.path.exists(png):
+        return jsonify({"ok": False, "error": "kaart is nog niet "
+                        "gegenereerd"}), 404
+    return send_file(png, mimetype="image/png")
+
+
+@app.post("/api/shutdown")
+def api_shutdown():
+    addr = request.remote_addr or ""
+    if addr not in ("127.0.0.1", "::1"):
+        return jsonify({"ok": False,
+                        "error": "shutdown alleen toegestaan via localhost"}), 403
+    if _SERVER is None:
+        return jsonify({"ok": False,
+                        "error": "de server kan vanaf hier niet gestopt worden"}), 400
+
+    def _stop():
+        time.sleep(0.3)
+        _SERVER.shutdown()
+        _SERVER.server_close()
+
+    threading.Thread(target=_stop, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=5000)
+    ap.add_argument("--no-browser", action="store_true",
+                    help="do not auto-open a browser")
+    args = ap.parse_args()
+    url = f"http://{args.host}:{args.port}"
+    if not args.no_browser:
+        import threading as _t
+        _t.Timer(0.7, lambda: os.system(
+            f"xdg-open {url} >/dev/null 2>&1 &")).start()
+    print(f"mapui: open {url}")
+    global _SERVER
+    server = make_server(host=args.host, port=args.port, app=app, threaded=True)
+    _SERVER = server
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        _SERVER = None
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()

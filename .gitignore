@@ -1,0 +1,22 @@
+# personal config (contains car details) - never commit
+config.json
+
+# throwaway analysis output
+_work/
+
+# downloaded map archives + extraction cache
+downloads/
+BACKUP/
+
+# venv / caches
+mib2nds-tool/.venv/
+__pycache__/
+*.pyc
+
+# large binaries
+*.img
+*.7z
+*.zip
+
+# SD-card backups
+SDcard_*/

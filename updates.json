@@ -1,0 +1,93 @@
+{
+  "source_forum": "https://www.seatcupra.net/forums/threads/updating-the-inbuilt-mib2-satnav-mib2-tricks-and-mib1.388586/page-165",
+  "packages": [
+    {
+      "id": "2710-eu1",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU1",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU1_2710_V24.7z",
+      "size_gb": 7.86,
+      "countries": ["ES", "PT", "GI", "AD", "FR", "MC", "NL", "BE", "LU", "IE", "GB", "IS"],
+      "note": "Zuidwest-Europa + Ierland/IJsland (indicator op basis van EU1 2510-analyse)",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu2",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU2",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU2_2710_V24.7z",
+      "size_gb": null,
+      "countries": [],
+      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu3",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU3",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU3_2710_V24.7z",
+      "size_gb": null,
+      "countries": [],
+      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu-dl1",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU-DL1",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL1_2710_V24.7z",
+      "size_gb": null,
+      "countries": [],
+      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu-dl2",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU-DL2",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL2_2710_V24.7z",
+      "size_gb": 10.14,
+      "countries": ["NLD", "DEU", "BEL", "LUX", "GBR", "IRL", "FRA", "AUT", "CHE"],
+      "note": "Dekt de gangbare gewenste landen (NLD/DEU/BEL/LUX/GBR/IRL/FRA/AUT/CHE); verdict geschikt op een 16 GB-kaart",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu-dl3",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU-DL3",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL3_2710_V24.7z",
+      "size_gb": null,
+      "countries": [],
+      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu-dl4",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU-DL4",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL4_2710_V24.7z",
+      "size_gb": null,
+      "countries": [],
+      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "recommended": false
+    },
+    {
+      "id": "2710-eu-as",
+      "version": "2710",
+      "release": "2027 (V24)",
+      "region": "EU-AS",
+      "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-AS_2710_V24.7z",
+      "size_gb": null,
+      "countries": [],
+      "note": "Europa + Azië (volledig); vereist een 32 GB VAG-kaart",
+      "recommended": false
+    }
+  ]
+}

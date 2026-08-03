@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MIB2 Map checker</title>
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
+<script src="/static/leaflet/leaflet.js"></script>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --fg:#e2e8f0; --muted:#94a3b8;
+          --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; --acc:#38bdf8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:15px/1.5 system-ui, sans-serif; }
+  header { padding:18px 24px; border-bottom:1px solid #334155;
+           background:#0b1222; }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  main { max-width:1060px; margin:0 auto; padding:20px 24px 60px; }
+  .card { background:var(--card); border:1px solid #334155;
+          border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+  .card h2 { margin:0 0 10px; font-size:16px; }
+  .card h2 .step { color:var(--acc); margin-right:6px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=text], select { background:#0f172a; color:var(--fg);
+          border:1px solid #475569; border-radius:6px; padding:8px 10px; }
+  input[type=text] { flex:1; min-width:220px; }
+  button { background:#2563eb; color:#fff; border:0; border-radius:6px;
+           padding:8px 14px; cursor:pointer; font-weight:600; }
+  button:hover { background:#1d4ed8; }
+  button:disabled { background:#475569; cursor:not-allowed; }
+  button.ghost { background:transparent; border:1px solid #64748b; color:var(--fg); }
+  .msg { padding:10px 12px; border-radius:8px; margin-top:10px;
+         white-space:pre-wrap; font-size:13px; }
+  .err { background:#450a0a; color:#fca5a5; border:1px solid #7f1d1d; }
+  .warn { background:#451a03; color:#fcd34d; border:1px solid #92400e; }
+  .ok   { background:#052e16; color:#86efac; border:1px solid #166534; }
+  .info { color:var(--muted); font-size:13px; margin-top:8px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:10px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #334155; }
+  th { color:var(--muted); font-weight:600; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:760px){ .grid2{ grid-template-columns:1fr; } }
+  .tag { display:inline-block; background:#0f172a; border:1px solid #475569;
+         border-radius:20px; padding:2px 10px; margin:2px 4px 2px 0; font-size:12px; }
+  .tag.yes { border-color:#166534; color:#86efac; }
+  .tag.no  { border-color:#7f1d1d; color:#fca5a5; }
+  .bar { height:12px; background:#0f172a; border-radius:6px; overflow:hidden; margin-top:10px; }
+  .bar > div { height:100%; width:0%; background:var(--acc); transition:width .3s; }
+  #mapDiv { height:580px; margin-top:10px; border-radius:8px;
+            background:#0b1222; z-index:0; }
+  .leaflet-container { background:#0b1222; }
+  .leaflet-control-attribution { font-size:10px; }
+  .muted { color:var(--muted); }
+  a { color:var(--acc); }
+  pre { background:#0f172a; padding:8px; border-radius:6px; overflow:auto;
+        font-size:12px; max-height:200px; }
+  .res-row { cursor:pointer; }
+  .res-row:hover { background:#334155; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #94a3b8;
+             border-top-color:var(--acc); border-radius:50%;
+             animation:spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  label.check { display:inline-block; margin:2px 10px 2px 0; font-size:13px; }
+  footer { position:fixed; left:0; right:0; bottom:0; display:none; gap:10px;
+           align-items:center; justify-content:center; padding:8px 16px;
+           background:#0b1222; border-top:1px solid #334155; font-size:12px;
+           color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>MIB2 Map checker</h1>
+  <p>Controleer een gedownloade kaart (folder met <code>maps/</code>,      <code>.zip</code> of
+     <code>.7z</code>): compatibiliteit met je profiel, landdekking direct, zoeken +
+     dekkingskaart na eenmalige conversie. Plus update-check, SD-updater en opschonen.</p>
+</header>
+<main>
+
+  <div class="card" id="cardSelect">
+    <h2><span class="step">1</span>Kies een kaart</h2>
+    <div class="row">
+      <select id="selCand" style="flex:1; min-width:200px;">
+        <option value="">-- kies een gedetecteerde map --</option>
+        {% for c in candidates %}
+        <option value="{{ c.path }}">{{ c.label }} ({{ c.kind }}{% if c.search_ready %}, geconverteerd{% endif %})</option>
+        {% endfor %}
+      </select>
+      <span class="muted">of</span>
+      <input type="text" id="inPath" placeholder="/pad/naar/map-folder of bestand.zip">
+      <button id="btnLoad" onclick="loadMap()">Load map</button>
+    </div>
+    <div class="info">Projectroot: <code>{{ root }}</code></div>
+    <div id="selStatus"></div>
+  </div>
+
+  <div class="card" id="cardResult" style="display:none;">
+    <h2><span class="step">2</span>Validatie &amp; landdekking</h2>
+    <div id="resultBody"></div>
+  </div>
+
+  <div class="card" id="cardConvert" style="display:none;">
+    <h2><span class="step">3</span>Zoeken + dekkingskaart inschakelen</h2>
+    <p class="muted">Converteert alleen <code>PRODUCT.NDS</code> (~100 MB) naar
+       <code>_work/</code>; de zware regio-databases worden <b>niet</b> geconverteerd.
+       Eénmalig, daarna direct opnieuw beschikbaar.</p>
+    <button id="btnConvert" onclick="startConvert()">Converteren &amp; inschakelen</button>
+    <div class="bar" id="convBar" style="display:none;"><div id="convFill"></div></div>
+    <div id="convStatus"></div>
+    <pre id="convLog" style="display:none;"></pre>
+  </div>
+
+  <div class="card" id="cardCoverage" style="display:none;">
+    <h2><span class="step">4</span>Dekkingskaart</h2>
+    <div class="row">
+      <button class="ghost" onclick="showCoverage(false)">Kaart tonen</button>
+      <button class="ghost" onclick="showCoverage(true)">Opnieuw renderen</button>
+      <button class="ghost" id="btnOsm" onclick="toggleOSM()">OSM-achtergrond: aan</button>
+      <button class="ghost" onclick="resetView()">Hele kaart</button>
+      <label class="check"><input type="checkbox" id="chkCov" checked onchange="toggleCov()"> dekking tonen</label>
+      <span id="covInfo" class="muted"></span>
+    </div>
+    <div id="covBody"></div>
+  </div>
+
+  <div class="card" id="cardSearch" style="display:none;">
+    <h2><span class="step">5</span>Zoek plaatsnaam</h2>
+    <div class="row">
+      <input type="text" id="inQ" placeholder="bijv. Nijmegen" onkeydown="if(event.key==='Enter')doSearch()">
+      <select id="selMode">
+        <option value="contains">bevat</option>
+        <option value="exact">exact</option>
+      </select>
+      <button onclick="doSearch()">Zoek</button>
+    </div>
+    <div id="regFilters" class="info"></div>
+    <div id="searchStatus"></div>
+    <table id="resTable" style="display:none;">
+      <thead><tr><th>Naam</th><th>Postcode</th><th>Breedtegraad</th><th>Lengtegraad</th><th>Regio</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="cardUpdates">
+    <h2><span class="step">6</span>Update-check &amp; download</h2>
+    <p class="muted">Bekende releases met directe downloadlinks op de VW-server
+       (<a href="https://www.seatcupra.net/forums/threads/updating-the-inbuilt-mib2-satnav-mib2-tricks-and-mib1.388586/page-165" target="_blank" rel="noopener">bron: SEATCUPRA.NET p.165</a>).
+       Gedownloade bestanden komen in <code>downloads/</code> terecht en worden direct
+       selecteerbaar in stap 1. De SD-updater (stap 7) installeert uit die zelfde map.</p>
+    <div class="row">
+      <button class="ghost" onclick="loadUpdates(true)">Status vernieuwen (online-check)</button>
+      <button class="ghost" onclick="loadUpdates(false)">Alleen lokale lijst</button>
+      <button onclick="discoverReleases()">Zoek nieuwe VW-releases</button>
+      <span id="updInfo" class="muted"></span>
+    </div>
+    <div id="updDiscover" class="info" style="display:none;"></div>
+    <div id="updBody"></div>
+    <div class="bar" id="dlBar" style="display:none;"><div id="dlFill"></div></div>
+    <div id="dlStatus"></div>
+    <pre id="dlLog" style="display:none;"></pre>
+  </div>
+
+  <div class="card" id="cardSd">
+    <h2><span class="step">7</span>SD-kaart updaten (cardreader)</h2>
+    <p class="muted">Kies een lokaal pakket uit <code>downloads/</code>. De kaart wordt
+       eerst volledig geback-upt naar <code>BACKUP/SDcard_&lt;datum&gt;/</code>, daarna worden
+       de bestaande <code>maps/</code> vervangen en wordt, indien je profiel dat
+       aangeeft (<code>car.workaround</code>), <code>maps/EEC/EEC_WLD/OVERALL.NDS</code>
+       teruggezet naar de originele van de oorspronkelijke release.</p>
+    <div id="sdStatus" class="info"></div>
+    <div class="row">
+      <select id="selSdSource" style="flex:1; min-width:200px;" onchange="onSdSourceChange()">
+        <option value="">-- kies een pakket --</option>
+      </select>
+      <label class="check"><input type="checkbox" id="chkDry" onchange="toggleDryRun()"> dry-run (niets schrijven)</label>
+    </div>
+    <div id="sdSourceInfo" class="info"></div>
+    <div class="row" style="margin-top:8px;">
+      <button id="btnSdInstall" onclick="startSdInstall()">Backup + Update SD</button>
+      <button class="ghost" onclick="loadSd(true)">Opnieuw scannen</button>
+      <span id="sdInfo" class="muted"></span>
+    </div>
+    <div class="bar" id="sdBar" style="display:none;"><div id="sdFill"></div></div>
+    <div id="sdCaption" class="muted" style="display:none;">Balk: indicatie per fase &middot; resterende tijd is een schatting &middot; percentages in de log komen van rsync/7z en zijn niet het aantal bytes dat al op de kaart staat.</div>
+    <div id="sdStatusMsg"></div>
+    <pre id="sdLog" style="display:none;"></pre>
+    <div id="sdChecklist" class="msg warn" style="display:none;"></div>
+  </div>
+
+  <div class="card" id="cardCleanup">
+    <h2><span class="step">8</span>Opschonen (tijdelijke mapdata)</h2>
+    <p class="muted">Verwijdert alleen afgeleide/uitgepakte data uit <code>_work/</code> en
+       uitgepakte kaartfolders. <b>Nooit</b>: <code>BACKUP/</code>, <code>*.zip</code>,
+       <code>*.7z</code> of <code>*.img</code>.</p>
+    <div class="row">
+      <button class="ghost" onclick="loadCleanup()">Opnieuw scannen</button>
+      <button class="ghost" onclick="toggleAllCleanup()">Selecteer alles</button>
+      <button id="btnCleanup" onclick="doCleanup()">Verwijder geselecteerde</button>
+      <span id="cleanupInfo" class="muted"></span>
+    </div>
+    <div id="cleanupBody"></div>
+  </div>
+
+</main>
+<footer id="serverFooter">
+  <span>Lokale server actief op <code id="serverHost"></code>.</span>
+  <button class="ghost" onclick="stopServer()">Server stoppen</button>
+</footer>
+<script>
+let currentPath = null;
+let currentInfo = null;
+let currentResult = null;
+let bbox = null;
+let map = null;
+let overlay = null;
+let osmLayer = null;
+let marker = null;
+let fitTries = 0;
+let regionRids = [];
+let currentCountries = {};
+let coveredSet = new Set();
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const d = await r.json();
+  return d;
+}
+function setMsg(el, cls, text) {
+  el.className = "msg " + cls;
+  el.style.display = text ? "" : "none";
+  el.textContent = text || "";
+}
+function setMsgHTML(el, cls, html) {
+  el.className = "msg " + cls;
+  el.style.display = html ? "" : "none";
+  el.innerHTML = html || "";
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function loadMap() {
+  const sel = document.getElementById("selCand");
+  const path = (sel.value || document.getElementById("inPath").value.trim());
+  if (!path) { setMsg(document.getElementById("selStatus"), "err", "Kies een map of typ een pad."); return; }
+  const st = document.getElementById("selStatus");
+  setMsgHTML(st, "ok", '<span class="spinner"></span>Valideren...');
+  const d = await api("/api/select", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({path})});
+  if (!d.ok) {
+    setMsg(st, "err", "Geen geldige kaart:\n" + d.error);
+    document.getElementById("cardResult").style.display = "none";
+    document.getElementById("cardConvert").style.display = "none";
+    document.getElementById("cardCoverage").style.display = "none";
+    document.getElementById("cardSearch").style.display = "none";
+    return;
+  }
+  currentPath = path;
+  currentInfo = d.info;
+  currentResult = d;
+  setMsgHTML(st, "ok", "Geldige map: <b>" + esc(d.name) + "</b> (" + esc(d.kind) + ")");
+  renderResult(d);
+}
+
+function renderResult(d) {
+  const body = document.getElementById("resultBody");
+  const sys = d.info.SystemName || "?";
+  const ver = d.info.ApplicationSoftwareVersionNumber || "?";
+  const part = d.info.PartNumber2 || "?";
+  let html = "<table><tbody>"
+    + "<tr><th>Naam</th><td>" + esc(d.name) + "</td></tr>"
+    + "<tr><th>Versie</th><td>" + esc(sys) + " v" + esc(ver) + "</td></tr>"
+    + "<tr><th>Onderdeelnummer</th><td>" + esc(part) + "</td></tr>"
+    + "</tbody></table>";
+  if (d.compat) {
+    html += renderCompat(d.compat);
+  }
+  if (d.warnings && d.warnings.length) {
+    html += '<div class="msg warn">' + d.warnings.map(esc).join("\n") + "</div>";
+  }
+  html += "<h3>Landen per regio</h3><table><thead><tr><th>Regio</th><th>Landen</th></tr></thead><tbody>";
+  for (const r of d.regions) {
+    const tags = r.countries_display.length
+      ? r.countries_display.map(c => '<span class="tag yes">' + esc(c) + "</span>").join("")
+      : '<span class="muted">geen landcodes gevonden</span>';
+    html += "<tr><td>" + esc(r.dir) + "</td><td>" + tags + "</td></tr>";
+  }
+  html += "</tbody></table>";
+  if (d.countries && d.countries.length) {
+    currentCountries = {};
+    coveredSet = new Set();
+    for (const c of d.countries) { currentCountries[c.code] = c.name; coveredSet.add(c.code); }
+    const all = d.countries.map(c => '<span class="tag">' + esc(c.name) + " (" + esc(c.code) + ")</span>").join("");
+    html += "<h3>Totaal gedekt (" + d.countries.length + ")</h3><div>" + all + "</div>";
+    html += "<h3>Check welke landen je nodig hebt</h3>"
+      + '<input type="text" id="inNeed" placeholder="bijv. NLD, DEU, BEL" style="max-width:300px;">'
+      + ' <button class="ghost" onclick="checkNeeded()">Check</button>'
+      + ' <div id="needOut" class="info"></div>';
+  }
+  body.innerHTML = html;
+
+  const conv = document.getElementById("cardConvert");
+  const cov = document.getElementById("cardCoverage");
+  const srh = document.getElementById("cardSearch");
+  conv.style.display = d.search_ready ? "none" : "";
+  cov.style.display = d.search_ready ? "" : "none";
+  srh.style.display = d.search_ready ? "" : "none";
+  if (d.search_ready) {
+    showCoverage(false);
+    document.getElementById("regFilters").innerHTML = "Laad eerst de kaart om het landfilter te tonen.";
+  }
+  document.getElementById("cardResult").style.display = "";
+}
+
+function checkNeeded() {
+  const raw = document.getElementById("inNeed").value;
+  const out = document.getElementById("needOut");
+  const wanted = raw.split(/[\s,;]+/).map(s => s.toUpperCase()).filter(Boolean);
+  if (!wanted.length) { out.textContent = ""; return; }
+  const lines = wanted.map(w => {
+    const ok = coveredSet.has(w);
+    const nm = currentCountries[w] || w;
+    return (ok ? "✔" : "✘") + "  " + nm + " (" + w + ")";
+  });
+  out.textContent = lines.join("\n");
+}
+
+function compatIcon(level) {
+  return level === "pass" ? "✔" : level === "fail" ? "✘" : level === "warn" ? "!" : "·";
+}
+
+function renderCompat(c) {
+  const cls = c.verdict_ok ? "ok" : "err";
+  let html = '<h3>Compatibiliteit met het profiel</h3>'
+    + '<div class="msg ' + cls + '"><b>' + esc(c.verdict) + '</b> — '
+    + esc(c.car.make) + ' · ' + esc(c.car.nav_series)
+    + (c.car.part_number ? ' (part ' + esc(c.car.part_number) + ')' : '') + '</div>';
+  html += "<table><thead><tr><th>Check</th><th>Resultaat</th></tr></thead><tbody>";
+  for (const ch of c.checks) {
+    const tcls = ch.level === "pass" ? "yes" : ch.level === "fail" ? "no" : "";
+    html += "<tr><td><b>" + esc(ch.label) + "</b></td><td>"
+      + '<span class="tag ' + tcls + '">' + compatIcon(ch.level) + "</span> "
+      + esc(ch.detail) + "</td></tr>";
+  }
+  html += "</tbody></table>";
+  html += '<h3>Gewenste landen</h3>'
+    + '<div class="row"><input type="text" id="inWanted" value="' + esc(c.wanted.join(", ")) + '" '
+    + 'placeholder="bijv. NLD, DEU, BEL, LUX, GBR, IRL, FRA, AUT, CHE" style="max-width:420px;">'
+    + ' <button class="ghost" onclick="refreshCompat()">Herbereken</button>'
+    + ' <span id="compatStatus" class="muted"></span></div>';
+  if (c.missing && c.missing.length) {
+    html += '<div class="info">Ontbreekt op deze kaart: <b>'
+      + esc(c.missing.map(m => m + " (" + (currentCountries[m] || m) + ")").join(", "))
+      + "</b></div>";
+  }
+  html += "<h3>Installatie</h3><ol>";
+  for (const s of c.install.steps) {
+    html += "<li>" + esc(s) + "</li>";
+  }
+  html += "</ol>";
+  if (!c.install.overall_backup_present) {
+    html += '<div class="msg warn">OVERALL.NDS-back-up niet gevonden: '
+      + esc(c.install.overall_backup) + "</div>";
+  } else {
+    html += '<div class="info">OVERALL.NDS-back-up aanwezig: '
+      + esc(c.install.overall_backup) + "</div>";
+  }
+  html += '<div class="info">Uitpakgrootte: ' + c.size.gb.toLocaleString("nl-NL")
+    + " GB</div>";
+  return html;
+}
+
+async function refreshCompat() {
+  const st = document.getElementById("compatStatus");
+  st.textContent = "bezig...";
+  const wanted = document.getElementById("inWanted").value
+    .split(/[\s,;]+/).map(s => s.toUpperCase()).filter(Boolean);
+  const d = await api("/api/compat", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({path: currentPath, wanted})});
+  if (!d.ok) { st.textContent = "fout: " + d.error; return; }
+  st.textContent = "herberekend";
+  currentResult.compat = d.compat;
+  renderResult(currentResult);
+}
+
+async function pollJob(jobId, doneCb, errCb) {
+  for (;;) {
+    const d = await api("/api/status/" + jobId);
+    if (!d.ok) { errCb(d.error); return; }
+    if (d.total > 0) {
+      const pct = Math.min(100, Math.round(100 * d.done / d.total));
+      document.getElementById("convFill").style.width = pct + "%";
+    }
+    doneCb(d);
+    if (d.state === "done" || d.state === "error") return;
+    await new Promise(r => setTimeout(r, 600));
+  }
+}
+
+async function startConvert() {
+  const btn = document.getElementById("btnConvert");
+  btn.disabled = true;
+  const bar = document.getElementById("convBar");
+  bar.style.display = "";
+  document.getElementById("convFill").style.width = "0%";
+  document.getElementById("convLog").style.display = "none";
+  setMsgHTML(document.getElementById("convStatus"), "ok", '<span class="spinner"></span>Converteren van PRODUCT.NDS...');
+  const d = await api("/api/convert", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({path: currentPath})});
+  if (!d.ok) { setMsg(document.getElementById("convStatus"), "err", d.error); btn.disabled = false; return; }
+  if (d.search_ready) { onConverted(); return; }
+  await pollJob(d.job, st => {
+    if (st.log_tail && st.log_tail.length) {
+      const pre = document.getElementById("convLog");
+      pre.style.display = "";
+      pre.textContent = st.log_tail.join("\n");
+    }
+  }, err => {
+    setMsg(document.getElementById("convStatus"), "err", err);
+    btn.disabled = false;
+  });
+  const st = await api("/api/status/" + d.job);
+  if (st.state === "done") { onConverted(); }
+  else { setMsg(document.getElementById("convStatus"), "err", st.error || "conversie mislukt"); btn.disabled = false; }
+}
+
+async function onConverted() {
+  setMsg(document.getElementById("convStatus"), "ok", "Conversie klaar; zoeken en kaart zijn nu beschikbaar.");
+  document.getElementById("cardConvert").style.display = "none";
+  document.getElementById("cardCoverage").style.display = "";
+  document.getElementById("cardSearch").style.display = "";
+  showCoverage(false);
+}
+
+async function showCoverage(force) {
+  const info = document.getElementById("covInfo");
+  const body = document.getElementById("covBody");
+  setMsgHTML(info, "ok", '<span class="spinner"></span>Kaart laden...');
+  const d = await api("/api/coverage?path=" + encodeURIComponent(currentPath) + (force ? "&force=1" : ""));
+  if (!d.ok) { setMsg(info, "err", d.error); return; }
+  bbox = d.stats.bbox;
+  regionRids = Object.keys(d.stats.regions).map(Number).sort((a,b)=>a-b);
+  const filters = document.getElementById("regFilters");
+  filters.innerHTML = "Landfilter: "
+    + '<label class="check"><input type="checkbox" id="rf_all" checked onchange="toggleAllRegions()"> alle</label> '
+    + regionRids.map(rid =>
+        '<label class="check"><input type="checkbox" data-rid="' + rid + '" checked onchange="doSearch()"> '
+        + esc(d.stats.regions[rid].label) + "</label>").join("");
+  body.innerHTML = '<div id="mapDiv"></div>'
+    + '<div class="info" id="covStats"></div>';
+  initMap();
+  const s = d.stats;
+  const parts = regionRids.map(rid => s.regions[rid].label + ": " + s.regions[rid].count + " namen").join(" · ");
+  document.getElementById("covStats").textContent =
+    s.total_points.toLocaleString("nl-NL") + " plaatsnamen · bbox " +
+    [s.bbox.lat_min, s.bbox.lat_max].join("–") + "N, " +
+    [s.bbox.lon_min, s.bbox.lon_max].join("–") + "E · " + parts;
+  document.getElementById("covStats").innerHTML +=
+    '<span id="covZoom" class="muted"></span>';
+  setMsg(info, "ok", "Dekkingskaart geladen — zoom met het muiswiel of dubbelklik, versleep om te pannen, klik op de kaart om de marker te wissen.");
+}
+
+function initMap() {
+  if (map) { map.remove(); map = null; }
+  fitTries = 0;
+  const div = document.getElementById("mapDiv");
+  map = L.map(div, {
+    attributionControl: true,
+    minZoom: 2,
+    zoomSnap: 0.05,
+    zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 160
+  });
+  const bounds = [[bbox.lat_min, bbox.lon_min], [bbox.lat_max, bbox.lon_max]];
+  overlay = L.imageOverlay("/api/coverage.png?path=" + encodeURIComponent(currentPath)
+    + "&t=" + Date.now(), bounds, { opacity: 1, interactive: false });
+  if (document.getElementById("chkCov").checked) overlay.addTo(map);
+  osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  });
+  osmLayer.addTo(map);
+  map.on("click", clearMarker);
+  map.on("moveend zoomend", updateZoomInfo);
+  fitCoverage();
+}
+
+function fitCoverage() {
+  if (!map || !overlay || fitTries > 20) return;
+  const m = map;
+  m._sizeChanged = true;
+  m.invalidateSize();
+  const z = m.getBoundsZoom(overlay.getBounds(), false, L.point(10, 10));
+  if (!isFinite(z) || z < 1) {
+    fitTries++;
+    setTimeout(() => { if (map === m) fitCoverage(); }, 150);
+    return;
+  }
+  fitTries = 0;
+  m.fitBounds(overlay.getBounds(), { padding: [6, 6] });
+  updateZoomInfo();
+}
+
+function updateZoomInfo() {
+  const el = document.getElementById("covZoom");
+  if (!el || !map) return;
+  const s = map.getSize();
+  el.textContent = " · weergave " + Math.round(s.x) + "×" + Math.round(s.y)
+    + " px · zoom " + map.getZoom().toFixed(2);
+}
+
+function toggleCov() {
+  if (!map || !overlay) return;
+  if (document.getElementById("chkCov").checked) overlay.addTo(map);
+  else map.removeLayer(overlay);
+}
+
+function toggleOSM() {
+  if (!map || !osmLayer) return;
+  const btn = document.getElementById("btnOsm");
+  if (map.hasLayer(osmLayer)) {
+    map.removeLayer(osmLayer);
+    btn.textContent = "OSM-achtergrond: uit";
+  } else {
+    osmLayer.addTo(map);
+    btn.textContent = "OSM-achtergrond: aan";
+  }
+}
+
+function resetView() {
+  if (map && overlay) map.fitBounds(overlay.getBounds());
+}
+
+function clearMarker() {
+  if (marker) { marker.remove(); marker = null; }
+}
+
+function toggleAllRegions() {
+  const all = document.getElementById("rf_all").checked;
+  document.querySelectorAll("#regFilters input[data-rid]").forEach(c => c.checked = all);
+  doSearch();
+}
+
+async function doSearch() {
+  const q = document.getElementById("inQ").value.trim();
+  const mode = document.getElementById("selMode").value;
+  const rids = [...document.querySelectorAll("#regFilters input[data-rid]:checked")]
+    .map(c => c.dataset.rid).join(",");
+  const st = document.getElementById("searchStatus");
+  if (!q) { document.getElementById("resTable").style.display = "none"; setMsg(st, "ok", ""); return; }
+  setMsgHTML(st, "ok", '<span class="spinner"></span>Zoeken...');
+  const d = await api("/api/search?path=" + encodeURIComponent(currentPath)
+    + "&q=" + encodeURIComponent(q) + "&mode=" + mode + "&regions=" + rids);
+  if (!d.ok) { setMsg(st, "err", d.error); return; }
+  setMsg(st, "ok", d.total + " unieke plaats" + (d.total === 1 ? "" : "en") + " gevonden" + (d.total > 200 ? " (eerste 200 getoond)" : ""));
+  const tbl = document.getElementById("resTable");
+  const tb = tbl.querySelector("tbody");
+  tb.innerHTML = d.results.map(r =>
+    '<tr class="res-row" onclick="setMarker(' + r.lat + "," + r.lon + ',\'' + esc(r.name) + '\')">'
+    + "<td>" + esc(r.name) + "</td><td>" + esc(r.postalCode || "") + "</td>"
+    + "<td>" + r.lat + "</td><td>" + r.lon + "</td><td>" + esc(r.regionLabel) + "</td></tr>").join("");
+  tbl.style.display = "";
+}
+
+async function setMarker(lat, lon, name) {
+  if (lat == null) { clearMarker(); return; }
+  if (!map) await showCoverage(false);
+  if (!map) return;
+  clearMarker();
+  marker = L.marker([lat, lon]).addTo(map);
+  if (name) {
+    marker.bindPopup("<b>" + esc(name) + "</b><br>" + lat.toFixed(5) + ", " + lon.toFixed(5));
+    marker.openPopup();
+  }
+  map.setView([lat, lon], Math.max(map.getZoom(), 9));
+}
+
+/* ---------------- update-check + download ---------------- */
+
+function fmtBytes(n) {
+  if (n == null) return "?";
+  let v = n, i = 0;
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return (i ? v.toFixed(1) : v) + " " + u[i];
+}
+
+function fmtTime(sec) {
+  if (sec == null) return "?";
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + " sec";
+  const m = Math.floor(sec / 60);
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm ? h + " uur " + mm + " min" : h + " uur";
+}
+
+async function refreshCandidates() {
+  const d = await api("/api/maps");
+  if (!d.ok) return;
+  const sel = document.getElementById("selCand");
+  const old = sel.value;
+  sel.innerHTML = '<option value="">-- kies een gedetecteerde map --</option>'
+    + d.candidates.map(c =>
+        '<option value="' + esc(c.path) + '">' + esc(c.label) + " ("
+        + esc(c.kind) + (c.search_ready ? ", geconverteerd" : "") + ")</option>").join("");
+  if (old) sel.value = old;
+}
+
+async function loadUpdates(check) {
+  const info = document.getElementById("updInfo");
+  const body = document.getElementById("updBody");
+  setMsgHTML(info, "ok", (check ? '<span class="spinner"></span>Online-check bezig...' : "Lokale lijst..."));
+  const d = await api("/api/updates" + (check ? "" : "?check=0"));
+  if (!d.ok) { setMsg(info, "err", d.error); return; }
+  const rec = d.packages.find(p => p.recommended);
+  let html = "<table><thead><tr><th>Pakket</th><th>Versie · regio</th>"
+    + "<th>Grootte</th><th>Online</th><th>Lokaal</th><th>Actie</th></tr></thead><tbody>";
+  for (const p of d.packages) {
+    const size = (p.remote_size != null) ? fmtBytes(p.remote_size)
+      : (p.size_gb ? p.size_gb.toFixed(1) + " GB" : "?");
+    const online = p.online === null ? '<span class="muted">n.v.t.</span>'
+      : p.online ? '<span class="tag yes">✔ online</span>'
+      : '<span class="tag no">✘ offline</span>';
+    const local = p.local
+      ? '<span class="tag yes">aanwezig (' + fmtBytes(p.local_size) + ")</span>"
+      : '<span class="muted">—</span>';
+    let action;
+    if (p.local) {
+      action = '<button class="ghost" onclick="openLocal(\'' + esc(p.local) + '\')">Openen</button>';
+    } else if (p.online) {
+      action = '<button onclick="startDownload(\'' + esc(p.url) + '\')">Download</button>';
+    } else {
+      action = '<span class="muted">—</span>';
+    }
+    html += "<tr><td>" + (p.recommended ? "<b>★ </b>" : "") + esc(p.filename) + "</td>"
+      + "<td>" + esc(p.release + " · " + p.region) + "</td>"
+      + "<td>" + size + "</td><td>" + online + "</td><td>" + local + "</td><td>" + action + "</td></tr>";
+    if (p.countries && p.countries.length) {
+      html += "<tr><td class=\"muted\" style=\"padding-left:20px\" colspan=\"6\">Landen: "
+        + p.countries.map(c => esc(c)).join(", ") + (p.note ? " — " + esc(p.note) : "") + "</td></tr>";
+    }
+  }
+  html += "</tbody></table>";
+  if (rec) {
+    html += '<div class="info">Aanbevolen pakket: <b>' + esc(rec.filename)
+      + "</b>" + (rec.local ? " (reeds gedownload)" : "") + "</div>";
+  }
+  html += '<div class="info">Downloadmap: <code>' + esc(d.download_dir) + "</code>"
+    + (d.checked_at ? " · gecheckt " + esc(d.checked_at) : "") + "</div>";
+  body.innerHTML = html;
+  setMsg(info, "ok", "Lijst geladen.");
+}
+
+async function openLocal(path) {
+  const sel = document.getElementById("selCand");
+  const inPath = document.getElementById("inPath");
+  sel.value = path;
+  inPath.value = "";
+  await loadMap();
+  document.getElementById("cardResult").scrollIntoView({ behavior: "smooth" });
+}
+
+async function discoverReleases() {
+  const info = document.getElementById("updInfo");
+  const box = document.getElementById("updDiscover");
+  box.style.display = "";
+  box.innerHTML = '<span class="spinner"></span>Officiële VW-server scannen '
+    + "(jaar-pad x versie x regio, HEAD-probes, niets wordt gedownload)...";
+  setMsgHTML(info, "ok", '<span class="spinner"></span>Zoeken...');
+  let d = await api("/api/discover", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:"{}"});
+  if (!d.ok) { setMsg(info, "err", d.error); box.style.display = "none"; return; }
+  await pollGeneric(d.job, "dlFill", "dlLog",
+    st => setMsg(info, "ok", "Zoeken... "
+      + Math.round(100 * st.done / (st.total || 1)) + "%"),
+    err => setMsg(info, "err", err));
+  const st = await api("/api/status/" + d.job);
+  if (st.state !== "done") {
+    setMsg(info, "err", st.error || "zoekopdracht mislukt");
+    return;
+  }
+  const r = st.result;
+  const online = r.found.map(f => f.version + " (" + f.region + ")");
+  let html = "Scan klaar: <b>" + r.probed + "</b> URL's gecheckt op de "
+    + "officiële VW-server, nieuwste online release: <b>"
+    + esc((r.found[0] ? r.found[0].version : "?") + " " + (r.found[0] ? r.found[0].release : ""))
+    + "</b>.";
+  if (r.new_releases.length === 0) {
+    html += "<br>Geen nieuwere releases gevonden dan versie <b>" + esc(r.current_max)
+      + "</b> (deze staat al in de lijst).";
+    box.innerHTML = html;
+    setMsg(info, "ok", "Geen nieuwere releases.");
+    return;
+  }
+  html += "<br>Nieuw gevonden (nog niet in updates.json): "
+    + r.new_releases.map(f => esc(f.version + " · " + f.region)).join(", ")
+    + ' <button class="ghost" onclick="addDiscoveries()">Voeg toe aan updates.json</button>';
+  box.innerHTML = html;
+  setMsg(info, "ok", "Nieuwe releases gevonden!");
+}
+
+async function addDiscoveries() {
+  const info = document.getElementById("updInfo");
+  const box = document.getElementById("updDiscover");
+  box.innerHTML = '<span class="spinner"></span>Toevoegen aan updates.json...';
+  const d = await api("/api/discover", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:'{"add":true}'});
+  if (!d.ok) { setMsg(info, "err", d.error); return; }
+  const st = await api("/api/status/" + d.job);
+  if (st.state === "done") {
+    const r = st.result;
+    box.innerHTML = "<b>" + r.added.length + "</b> release(s) toegevoegd aan "
+      + "updates.json: " + r.added.map(f => esc(f.version + " · " + f.region)).join(", ");
+    setMsg(info, "ok", "Registry bijgewerkt.");
+    await loadUpdates(false);
+  } else {
+    setMsg(info, "err", st.error || "toevoegen mislukt");
+  }
+}
+
+async function startDownload(url) {
+  if (!confirm("Download dit pakket naar downloads/?")) return;
+  const btn = document.getElementById("dlBar");
+  btn.style.display = "";
+  document.getElementById("dlFill").style.width = "0%";
+  document.getElementById("dlLog").style.display = "none";
+  setMsgHTML(document.getElementById("dlStatus"), "ok", '<span class="spinner"></span>Download starten...');
+  const d = await api("/api/download", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({url})});
+  if (!d.ok) { setMsg(document.getElementById("dlStatus"), "err", d.error); return; }
+  await pollGeneric(d.job, "dlFill", "dlLog",
+    st => setMsg(document.getElementById("dlStatus"), "ok",
+      "Downloaden... " + Math.round(100 * st.done / (st.total || 1)) + "%"),
+    err => setMsg(document.getElementById("dlStatus"), "err", err));
+  const st = await api("/api/status/" + d.job);
+  if (st.state === "done") {
+    setMsg(document.getElementById("dlStatus"), "ok",
+      "Download klaar in downloads/.");
+    document.getElementById("dlBar").style.display = "none";
+    await loadUpdates(false);
+    await refreshCandidates();
+  } else {
+    setMsg(document.getElementById("dlStatus"), "err", st.error || "download mislukt");
+  }
+}
+
+async function pollGeneric(jobId, fillId, logId, onTick, onErr) {
+  for (;;) {
+    const d = await api("/api/status/" + jobId);
+    if (!d.ok) { onErr(d.error); return; }
+    if (d.total > 0) {
+      const pct = Math.min(100, Math.round(100 * d.done / d.total));
+      document.getElementById(fillId).style.width = pct + "%";
+    }
+    onTick(d);
+    if (d.state === "done" || d.state === "error") return;
+    await new Promise(r => setTimeout(r, 600));
+  }
+}
+
+/* ---------------- SD-updater ---------------- */
+
+let sdSources = [];
+
+async function loadSd(scan) {
+  const status = document.getElementById("sdStatus");
+  setMsgHTML(status, "ok", '<span class="spinner"></span>SD-kaart scannen...');
+  const d = await api("/api/sd/status");
+  if (!d.ok) { setMsg(status, "err", d.error); return; }
+  if (d.sd) {
+    const u = d.sd.usage || {};
+    status.innerHTML = "SD-kaart gevonden: <b>" + esc(d.sd.mount) + "</b> ("
+      + esc(d.sd.device) + ") · versie: <b>" + esc(d.sd.info.SystemName + " v"
+      + d.sd.info.ApplicationSoftwareVersionNumber)
+      + "</b>" + (u.free ? " · vrij: " + fmtBytes(u.free) : "")
+      + '<br>OVERALL.NDS-back-up: ' + (d.overall_backup_present
+        ? '<span class="tag yes">aanwezig</span> <code>' + esc(d.overall_backup) + "</code>"
+        : '<span class="tag no">MIST!</span> <code>' + esc(d.overall_backup) + "</code>");
+  } else {
+    status.innerHTML = '<span class="tag no">Geen MIB2-SD-kaart gevonden.</span> '
+      + "Steek de kaart in de cardreader en mount de partitie (maps/00/nds/dbinfo.txt).";
+  }
+  const sd = await api("/api/sd/sources");
+  if (!sd.ok) { document.getElementById("sdInfo").textContent = "fout: " + sd.error; return; }
+  sdSources = sd.sources;
+  const sel = document.getElementById("selSdSource");
+  sel.innerHTML = '<option value="">-- kies een pakket --</option>'
+    + sdSources.map(s =>
+        '<option value="' + esc(s.path) + '">' + esc(s.label) + " (" + s.kind + ")"
+        + (s.verdict ? " · " + esc(s.verdict) : s.error ? " · fout" : "") + "</option>").join("");
+  onSdSourceChange();
+}
+
+function onSdSourceChange() {
+  const path = document.getElementById("selSdSource").value;
+  const info = document.getElementById("sdSourceInfo");
+  const s = sdSources.find(x => x.path === path);
+  if (!s) { info.textContent = ""; return; }
+  info.innerHTML = (s.ok ? '<span class="tag yes">geldig</span>' : '<span class="tag no">ongeldig</span>')
+    + " " + esc(s.system) + " v" + esc(s.version)
+    + " · " + fmtBytes(s.size)
+    + (s.verdict ? " · verdict: <b>" + esc(s.verdict) + "</b>" : "")
+    + (s.missing && s.missing.length ? " · mist: " + esc(s.missing.join(", ")) : "")
+    + (s.error ? '<div class="msg err">' + esc(s.error) + "</div>" : "");
+}
+
+function toggleDryRun() {
+  const btn = document.getElementById("btnSdInstall");
+  btn.textContent = document.getElementById("chkDry").checked
+    ? "Dry-run testen" : "Backup + Update SD";
+}
+
+async function startSdInstall() {
+  const sel = document.getElementById("selSdSource");
+  const source = sel.value;
+  if (!source) { document.getElementById("sdInfo").textContent = "kies eerst een pakket."; return; }
+  const dry = document.getElementById("chkDry").checked;
+  if (!dry && !confirm("Dit vervangt ALLE kaartdata op de SD-kaart.\n"
+      + "De huidige inhoud wordt eerst volledig geback-upt naar BACKUP/SDcard_<datum>/.\n\n"
+      + "Doorgaan? Zet de kaart NIET los tijdens het kopiëren.")) return;
+  document.getElementById("btnSdInstall").disabled = true;
+  const bar = document.getElementById("sdBar");
+  bar.style.display = "";
+  document.getElementById("sdCaption").style.display = "";
+  document.getElementById("sdFill").style.width = "0%";
+  document.getElementById("sdLog").style.display = "none";
+  document.getElementById("sdChecklist").style.display = "none";
+  setMsgHTML(document.getElementById("sdStatusMsg"), "ok",
+    '<span class="spinner"></span>' + (dry ? "Dry-run testen..." : "Backup + update starten..."));
+  const d = await api("/api/sd/install", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({source, dry_run: dry})});
+  if (!d.ok) {
+    setMsg(document.getElementById("sdStatusMsg"), "err", d.error);
+    document.getElementById("btnSdInstall").disabled = false;
+    return;
+  }
+  const logEl = document.getElementById("sdLog");
+  await pollGeneric(d.job, "sdFill", "sdLog",
+    st => {
+      if (st.log_tail && st.log_tail.length) {
+        logEl.style.display = "";
+        logEl.textContent = st.log_tail.join("\n");
+      }
+      const ph = st.phase ? " · fase: " + st.phase : "";
+      const eta = st.eta != null
+        ? " · resterend (schatting): ca. " + fmtTime(st.eta) : "";
+      setMsgHTML(document.getElementById("sdStatusMsg"), "ok",
+        '<span class="spinner"></span>Bezig' + esc(ph) + eta);
+    },
+    err => {
+      setMsg(document.getElementById("sdStatusMsg"), "err", err);
+      document.getElementById("btnSdInstall").disabled = false;
+    });
+  const st = await api("/api/status/" + d.job);
+  document.getElementById("btnSdInstall").disabled = false;
+  if (st.state !== "done") {
+    setMsg(document.getElementById("sdStatusMsg"), "err", st.error || "update mislukt");
+    return;
+  }
+  setMsg(document.getElementById("sdStatusMsg"), "ok",
+    dry ? "Dry-run voltooid — niets gewijzigd." : "Update voltooid!");
+  bar.style.display = "none";
+  document.getElementById("sdCaption").style.display = "none";
+  const chk = document.getElementById("sdChecklist");
+  chk.style.display = "";
+  chk.innerHTML = "<b>Handmatige stappen, ná de kopie:</b><ol>"
+    + st.result.manual_steps.map(s => "<li>" + esc(s) + "</li>").join("")
+    + "</ol><div class=\"info\">Backup: <code>" + esc(st.result.backup_dir)
+    + "</code><br>OVERALL.NDS-workaround toegepast vanuit <code>"
+    + esc(st.result.overall_backup) + "</code></div>"
+    + (st.result.lock_note ? "<div class=\"info\">" + esc(st.result.lock_note) + "</div>" : "");
+  chk.scrollIntoView({ behavior: "smooth" });
+  await loadSd(true);
+}
+
+/* ---------------- opschonen ---------------- */
+
+let cleanupItems = [];
+
+async function loadCleanup() {
+  const info = document.getElementById("cleanupInfo");
+  setMsgHTML(info, "ok", '<span class="spinner"></span>Scannen...');
+  const d = await api("/api/cleanup");
+  if (!d.ok) { setMsg(info, "err", d.error); return; }
+  cleanupItems = d.items;
+  const body = document.getElementById("cleanupBody");
+  if (!cleanupItems.length) {
+    body.innerHTML = '<div class="info">Niets op te ruimen.</div>';
+    document.getElementById("btnCleanup").disabled = true;
+  } else {
+    body.innerHTML = "<table><thead><tr><th>Kies</th><th>Item</th><th>Soort</th><th>Grootte</th></tr></thead><tbody>"
+      + cleanupItems.map(it =>
+          '<tr><td><input type="checkbox" class="cl-item" data-path="' + esc(it.path) + '"></td>'
+          + "<td>" + esc(it.label) + "</td><td>" + esc(it.kind) + "</td><td>"
+          + fmtBytes(it.size) + "</td></tr>").join("")
+      + "</tbody></table>";
+    document.getElementById("btnCleanup").disabled = false;
+  }
+  info.textContent = cleanupItems.length
+    ? "Totaal terug te winnen: " + fmtBytes(d.total_bytes) : "";
+}
+
+function toggleAllCleanup() {
+  const boxes = document.querySelectorAll(".cl-item");
+  const anyUnchecked = [...boxes].some(b => !b.checked);
+  boxes.forEach(b => b.checked = anyUnchecked);
+}
+
+async function doCleanup() {
+  const paths = [...document.querySelectorAll(".cl-item:checked")]
+    .map(b => b.dataset.path);
+  if (!paths.length) { document.getElementById("cleanupInfo").textContent = "selecteer eerst items."; return; }
+  const total = cleanupItems.filter(i => paths.includes(i.path))
+    .reduce((a, i) => a + i.size, 0);
+  if (!confirm("Verwijder " + paths.length + " item(s), " + fmtBytes(total) + "?")) return;
+  const info = document.getElementById("cleanupInfo");
+  setMsgHTML(info, "ok", '<span class="spinner"></span>Verwijderen...');
+  const d = await api("/api/cleanup", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({paths})});
+  if (!d.ok) { setMsg(info, "err", d.error); return; }
+  setMsg(info, "ok", "Opgeruimd: " + fmtBytes(d.freed)
+    + (d.errors.length ? " · fouten:\n" + d.errors.join("\n") : ""));
+  await loadCleanup();
+  await refreshCandidates();
+}
+
+loadUpdates(false);
+loadSd(false);
+loadCleanup();
+
+/* ---- lokaal: server stoppen + waarschuwing bij sluiten ---- */
+const IS_LOOPBACK = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(location.hostname);
+if (IS_LOOPBACK) {
+  const fb = document.getElementById("serverFooter");
+  fb.style.display = "flex";
+  document.getElementById("serverHost").textContent = location.host;
+  window.addEventListener("beforeunload", e => {
+    e.preventDefault();
+    e.returnValue = "De lokale mapui-server blijft op de achtergrond draaien; "
+      + "gebruik 'Server stoppen' onderaan om hem af te sluiten.";
+  });
+}
+async function stopServer() {
+  if (!confirm("De lokale mapui-server stoppen? De pagina wordt daarna gesloten.")) return;
+  try { await fetch("/api/shutdown", { method: "POST", keepalive: true }); } catch (e) {}
+  window.close();
+}
+</script>
+</body>
+</html>
