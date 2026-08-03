@@ -10,6 +10,13 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/<script>.py ...
 
 See the repo-level `README.md` for the overview, requirements and config.
 
+> ## ⚠️ USE AT YOUR OWN RISK
+>
+> The SD-card updater **overwrites your satnav SD card**. Always back up the
+> original card first (the tool does), use the correct stream/region for your
+> unit, and follow the official forum procedure. **No warranty — anything
+> that happens to your car or card is your own responsibility.**
+
 ## mapui.py — web UI (easiest)
 
 ```bash
@@ -43,6 +50,19 @@ the UI will:
 Generated files go to `_work/` (throwaway). Source folders are only read,
 never modified. Conversion is cached: a converted package is immediately
 available next time.
+
+## Car profile (first run — no config editing)
+
+Step 1 of the UI ("Car profile") auto-detects your car from the SD card or a
+backup folder and writes `config.json` for you: detect (SD card, a detected
+folder, or a folder picked with the built-in browser), review the form
+(per-field `?` tooltips explain what is detected vs. manually filled),
+save. The CLI equivalent is `update_sd.py profile [--from <folder>]`.
+Detection reads only `dbinfo.txt` + the tiny per-region `OVERALL.NDS` files
+and never writes to the source. Guardrails: sources without a `maps/` tree
+or `dbinfo.txt` are refused; saving requires the essential fields; an
+enabled OVERALL.NDS workaround needs a valid (ZV-zlib) original
+`OVERALL.NDS` — checked again before the updater ever writes to the card.
 
 ## query.py — CLI (search / countries / coverage / compat)
 

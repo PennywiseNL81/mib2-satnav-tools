@@ -182,6 +182,11 @@ def install_to_sd(sd_mount: str, source_path: str, backup_dir: str = None,
         raise SDError("original OVERALL.NDS is missing; install refused "
                       "(the configured OVERALL.NDS workaround cannot run: "
                       f"{overall_orig}).")
+    if workaround and not mapdata.valid_overall_nds(overall_orig):
+        raise SDError("the configured original OVERALL.NDS is not a valid "
+                      "NDS file (missing 'ZV-zlib' magic or empty): "
+                      f"{overall_orig}. Install refused - writing this file "
+                      "onto the card could break the map acceptance.")
     if not workaround:
         logmsg("no OVERALL.NDS workaround configured (car.workaround) - "
                "skipping")
@@ -387,6 +392,58 @@ def cmd_detect(_args) -> int:
     return 0
 
 
+def cmd_profile(args) -> int:
+    if args.from_path:
+        src = os.path.abspath(os.path.expanduser(args.from_path))
+        if not os.path.isdir(src):
+            print(f"error: not a folder: {src}")
+            return 1
+    else:
+        sd = detect_sd()
+        if not sd:
+            print("no MIB2 SD card found; insert the card into the "
+                  "cardreader or pass --from <backup-folder>.")
+            return 1
+        src = sd["mount"]
+    try:
+        derived = mapdata.derive_profile(src)
+    except (mapdata.MapError, OSError) as e:
+        print(f"error: {e}")
+        return 1
+    car = derived["car"]
+    print(f"Detected profile from: {derived['source']}")
+    print(f"  navigation series:  {car['nav_series']} ({car['cartography']})")
+    print(f"  part number:        {car['part_number'] or '-'}")
+    print(f"  region prefix:      {car['region_prefix']}")
+    print(f"  original release:   {car['original_release'] or '-'}")
+    print(f"  SD card size:       {car['card_size_gb']} GB")
+    print(f"  covered countries:  {len(car['wanted_countries'])} "
+          f"({' '.join(car['wanted_countries'])})")
+    print(f"  OVERALL.NDS workaround: "
+          f"{'enabled' if car['workaround']['enabled'] else 'disabled'}"
+          + (f" (original: {derived['overall_src']})"
+             if derived["overall_src"] else ""))
+    for w in derived["warnings"]:
+        print(f"  warning: {w}")
+    target = mapdata.resolve_config_path()
+    if not args.yes:
+        ans = input(f"save this profile to {target}? [y/N] ").strip().lower()
+        if ans not in ("y", "yes"):
+            print("cancelled.")
+            return 1
+    try:
+        result = mapdata.save_profile(car, derived["overall_src"])
+    except (mapdata.MapError, OSError) as e:
+        print(f"error: {e}")
+        return 1
+    print(f"Saved profile to {result['config_path']}")
+    if result["overall_backup"]:
+        print(f"Original OVERALL.NDS: {result['overall_backup']}")
+    for w in result["warnings"]:
+        print(f"  warning: {w}")
+    return 0
+
+
 def cmd_list(_args) -> int:
     sources = list_sources()
     if not sources:
@@ -489,6 +546,15 @@ def main(argv=None) -> int:
                            help="do not ask for confirmation")
     p_install.add_argument("--dry-run", action="store_true",
                            help="run through all steps without writing")
+    p_profile = sub.add_parser(
+        "profile", help="auto-create the car profile from the SD card or a "
+                        "backup folder")
+    p_profile.add_argument(
+        "--from", dest="from_path",
+        help="a backup folder or SD-card mount containing maps/ "
+             "(default: the detected SD card)")
+    p_profile.add_argument("--yes", action="store_true",
+                           help="save without asking for confirmation")
     args = ap.parse_args(argv)
     if not args.cmd:
         ap.print_help()
@@ -499,6 +565,8 @@ def main(argv=None) -> int:
         return cmd_list(args)
     if args.cmd == "install":
         return cmd_install(args)
+    if args.cmd == "profile":
+        return cmd_profile(args)
     return 0
 
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -81,12 +82,22 @@ def config_source() -> str:
     return CONFIG_PATH
 
 
+def _workspace_root() -> str:
+    """Where personal data folders live by default: the repo's parent when
+    writable (workspace-root pattern), else the repo root."""
+    parent = os.path.dirname(PROJECT_ROOT)
+    if os.access(parent or ".", os.W_OK):
+        return parent
+    return PROJECT_ROOT
+
+
 def _dir_key(key: str, default: str) -> str:
-    """Resolve a dirs.* key to an absolute path (relative entries are anchored
-    to PROJECT_ROOT)."""
+    """Resolve a dirs.* key to an absolute path.  Relative entries are
+    anchored to the workspace root (the repo's parent when writable, else
+    the repo root) - the same place config.json lives by default."""
     val = config().get("dirs", {}).get(key) or default
     if not os.path.isabs(val):
-        val = os.path.join(PROJECT_ROOT, val)
+        val = os.path.join(_workspace_root(), val)
     return val
 
 
@@ -238,6 +249,254 @@ def install_plan(profile: dict = None) -> dict:
         "cleared by the update.",
     ]
     return {"steps": steps + manual, "manual": manual}
+
+
+def reload_config():
+    """Reload config.json in-process (after the UI saves a new profile)."""
+    global CONFIG_DATA, CONFIG_PATH, WORK, DOWNLOAD_DIR, EXTRACTED_DIR, BACKUP_DIR, DEFAULT_NE
+    CONFIG_DATA, CONFIG_PATH = _load_config()
+    WORK = _dir_key("work", "_work")
+    DOWNLOAD_DIR = _dir_key("downloads", "downloads")
+    EXTRACTED_DIR = os.path.join(DOWNLOAD_DIR, "extracted")
+    BACKUP_DIR = _dir_key("backup", "BACKUP")
+    DEFAULT_NE = (os.environ.get("NE_COUNTRIES")
+                  or config().get("dirs", {}).get("ne_geojson")
+                  or os.path.join(tempfile.gettempdir(), "ne_50m.geojson"))
+
+
+def resolve_config_path() -> str:
+    """Where a newly created config is written.
+
+    Follows the same order as _load_config() minus the "first hit wins" rule:
+    MIB2_CONFIG, else the workspace root (the repo's parent when writable,
+    else the repo root).
+    """
+    env = os.environ.get("MIB2_CONFIG")
+    if env:
+        return env
+    return os.path.join(_workspace_root(), "config.json")
+
+
+def _find_maps_root(path: str) -> str:
+    """Return the `maps/` tree inside an SD-card mount or a backup folder."""
+    p = os.path.abspath(path)
+    if os.path.isdir(os.path.join(p, "maps")):
+        return os.path.join(p, "maps")
+    if os.path.isdir(os.path.join(p, "00")) and os.path.isdir(os.path.join(p, "EEC")):
+        return p
+    raise MapError(
+        f"no maps/ found in {p}: expected an SD-card mount, a backup of it, "
+        "or a folder that contains a maps/ tree")
+
+
+def _card_size_gb(total_bytes: int) -> int:
+    """Round a raw disk size to a typical card size (8/16/32/64/128 GB)."""
+    gb = total_bytes / 1e9
+    for size in (8, 16, 32, 64, 128):
+        if gb <= size + 1:
+            return size
+    return int(round(gb))
+
+
+def derive_profile(maps_path: str) -> dict:
+    """Auto-derive a car profile from an SD card or a backup folder.
+
+    Reads only the card/backup (dbinfo.txt + tiny per-region OVERALL.NDS
+    files) and writes nothing.  Returns {"source", "car", "overall_src",
+    "warnings"} where ``overall_src`` is the original
+    maps/EEC/EEC_WLD/OVERALL.NDS (needed for the workaround) or None.
+    """
+    maps_root = _find_maps_root(maps_path)
+    root = (os.path.dirname(maps_root) if os.path.basename(maps_root) == "maps"
+            else maps_root)
+    warnings = []
+    info = {}
+    dbinfo = os.path.join(maps_root, "00", "nds", "dbinfo.txt")
+    if os.path.isfile(dbinfo):
+        try:
+            with open(dbinfo, "r", encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if "=" in line:
+                        k, _, v = line.partition("=")
+                        info[k.strip()] = v.strip().strip('"')
+        except OSError as e:
+            warnings.append(f"dbinfo.txt not readable: {e}")
+    else:
+        raise MapError(
+            f"not a MIB2 SD card/backup: no dbinfo.txt at {dbinfo}")
+
+    sys_name = info.get("SystemName", "").strip()
+    version = info.get("ApplicationSoftwareVersionNumber", "").strip()
+    if not sys_name and not version:
+        warnings.append("dbinfo.txt contains no SystemName/version; "
+                        "the detected profile may be unreliable")
+    # The most specific part number is listed last (a Seat unit e.g. carries
+    # VW parts in 1-3 and its own part in 4); pick the last non-empty one.
+    part = next((info.get(k, "").strip() for k in
+                 ("PartNumber4", "PartNumber3", "PartNumber2", "PartNumber1")
+                 if info.get(k, "").strip()), "")
+
+    m = re.match(r"^[A-Za-z]{2,4}", sys_name)
+    region_prefix = m.group(0).upper() if m else "ECE"
+
+    card_size_gb = None
+    if os.path.ismount(root):
+        try:
+            card_size_gb = _card_size_gb(shutil.disk_usage(root).total)
+        except OSError:
+            pass
+    if not card_size_gb:
+        card_size_gb = 16
+        warnings.append("card size not measurable from this source; kept "
+                        "16 GB (edit if needed)")
+
+    wanted = []
+    source = FolderSource(root)
+    try:
+        val = validate(source)
+        if val["ok"]:
+            wanted = sorted(_covered_iso(source, nds_out_dir(source),
+                                         val["regions"]))
+        else:
+            warnings.append("country coverage not readable: "
+                            + "; ".join(val["errors"]))
+    except Exception as e:
+        warnings.append(f"country coverage not readable: {e}")
+
+    ver_int = _ver_int(version)
+    workaround_enabled = ver_int is not None and ver_int < 1520
+    overall_src = None
+    if workaround_enabled:
+        cand = os.path.join(maps_root, "EEC", "EEC_WLD", "OVERALL.NDS")
+        if os.path.isfile(cand):
+            overall_src = cand
+        else:
+            warnings.append("workaround enabled but maps/EEC/EEC_WLD/"
+                            "OVERALL.NDS was not found on the source")
+
+    release = version or sys_name
+    if version and sys_name:
+        release = f"{version} ({sys_name})"
+    car = {
+        "make": "",
+        "nav_series": "MIB2 Standard (DiscoverMedia2)",
+        "cartography": "TomTom",
+        "part_number": part,
+        "region_prefix": region_prefix,
+        "original_release": release,
+        "card_size_gb": card_size_gb,
+        "sd_card": "VAG MIB2 SD card (CID-bound)",
+        "wanted_countries": wanted,
+        "workaround": {"enabled": workaround_enabled, "overall_backup": ""},
+    }
+    return {"source": root, "car": car, "overall_src": overall_src,
+            "warnings": warnings}
+
+
+NDS_MAGIC = b"ZV-zlib"
+
+
+def valid_overall_nds(path: str) -> bool:
+    """Cheap sanity check for an NDS container file (e.g. OVERALL.NDS).
+
+    Every NDS file is a zipvfs container whose payloads start with the
+    ``ZV-zlib`` magic.  This is a first-bytes check only; it catches wrong
+    files, empty/corrupt copies and truncation before anything is copied
+    onto an SD card.
+    """
+    try:
+        if not os.path.isfile(path):
+            return False
+        with open(path, "rb") as fh:
+            head = fh.read(len(NDS_MAGIC))
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+        return len(head) == len(NDS_MAGIC) and head == NDS_MAGIC and size > 0
+    except OSError:
+        return False
+
+
+def save_profile(car: dict, overall_src: str = None) -> dict:
+    """Write a (derived) car profile into config.json and reload it.
+
+    Copies ``overall_src`` (the original card's OVERALL.NDS) into the
+    configured backup dir when the workaround is enabled.  Returns
+    {"config_path", "overall_backup", "warnings"}.  Never modifies the
+    source card/backup.
+    """
+    warnings = []
+    cfg = dict(config())
+    cfg.setdefault("dirs", {})
+    old = cfg.get("car", {}) or {}
+    car = dict(car)
+    wa = dict(car.get("workaround") or {})
+    wa.setdefault("enabled", False)
+    wa.setdefault("overall_backup", (old.get("workaround", {}) or {}).get(
+        "overall_backup", ""))
+    car["workaround"] = wa
+    for k, v in list(car.items()):
+        if k == "workaround":
+            continue
+        if not v and old.get(k) is not None:
+            car[k] = old[k]
+
+    part = str(car.get("part_number") or "").strip()
+    release = str(car.get("original_release") or "").strip()
+    try:
+        size = int(car.get("card_size_gb") or 0)
+    except (TypeError, ValueError):
+        size = 0
+    missing = []
+    if not part:
+        missing.append("part number")
+    if not release:
+        missing.append("original release")
+    if size <= 0:
+        missing.append("SD card size (must be > 0)")
+    if missing:
+        raise MapError("incomplete car profile - missing: "
+                       + ", ".join(missing))
+
+    if not (car.get("wanted_countries") or []):
+        warnings.append("no wanted countries set; the coverage/compat check "
+                        "will be skipped until they are filled in")
+
+    if wa["enabled"]:
+        if overall_src and os.path.isfile(overall_src):
+            if not valid_overall_nds(overall_src):
+                raise MapError(
+                    "the source's OVERALL.NDS is not a valid NDS file: "
+                    + str(overall_src) + " (expected the 'ZV-zlib' container "
+                    "magic). Refusing to store it.")
+            target = os.path.join(_dir_key("backup", "BACKUP"), "original",
+                                  "maps", "EEC", "EEC_WLD", "OVERALL.NDS")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shutil.copy2(overall_src, target)
+            wa["overall_backup"] = target
+            warnings.append(f"original OVERALL.NDS copied to {target}")
+        elif wa["overall_backup"]:
+            if not valid_overall_nds(wa["overall_backup"]):
+                raise MapError(
+                    "the configured original OVERALL.NDS is not a valid NDS "
+                    "file: " + str(wa["overall_backup"]))
+            warnings.append(f"using existing original OVERALL.NDS at "
+                            f"{wa['overall_backup']}")
+        else:
+            raise MapError(
+                "workaround is enabled but no original OVERALL.NDS is "
+                "available. Detect from an original card (it finds the file "
+                "automatically) or set a path to a stored original "
+                "OVERALL.NDS")
+    else:
+        wa["overall_backup"] = ""
+    cfg["car"] = car
+
+    path = resolve_config_path()
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2, ensure_ascii=False)
+    reload_config()
+    return {"config_path": path, "overall_backup": wa["overall_backup"],
+            "warnings": warnings}
 
 
 class MapError(Exception):

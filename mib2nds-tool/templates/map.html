@@ -36,6 +36,14 @@
   .warn { background:#451a03; color:#fcd34d; border:1px solid #92400e; }
   .ok   { background:#052e16; color:#86efac; border:1px solid #166534; }
   .info { color:var(--muted); font-size:13px; margin-top:8px; }
+  .help { display:inline-block; width:18px; height:18px; line-height:18px;
+          text-align:center; border-radius:50%; background:#0f172a;
+          border:1px solid var(--acc); color:var(--acc); font-size:12px;
+          font-weight:700; cursor:help; margin-left:8px; vertical-align:middle; }
+  .help:hover { background:var(--acc); color:#0b1222; }
+  .hint { font-size:12px; margin-top:4px; color:var(--muted); }
+  .hint.ok { color:#86efac; }
+  .hint.warn { color:#fcd34d; }
   table { border-collapse:collapse; width:100%; font-size:13px; margin-top:10px; }
   th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #334155; }
   th { color:var(--muted); font-weight:600; }
@@ -78,8 +86,35 @@
 </header>
 <main>
 
+  <div class="card" id="cardProfile">
+    <h2><span class="step">1</span>Car profile</h2>
+    <p class="muted">The reference car used by the compatibility check (step 2).
+       Detect it from your SD card or a backup of it: part number, region,
+       original map release, card size, covered countries and the OVERALL.NDS
+       workaround are all filled in automatically. Edit anything, then save —
+       the profile is written to <code>config.json</code> next to the project.</p>
+    <div id="profStatus" class="info"></div>
+    <div class="row">
+      <button id="btnProfSd" onclick="detectProfile('sd')">Detect from SD card</button>
+      <span class="muted">or</span>
+      <select id="profSourceSel" style="flex:1; min-width:220px;">
+        <option value="">-- choose a detected folder --</option>
+      </select>
+      <button class="ghost" onclick="detectProfile('folder')">Detect from folder</button>
+      <button class="ghost" onclick="openBrowse()">Browse folders...</button>
+    </div>
+    <div id="profForm" style="display:none;">
+      <div class="grid2" id="profFields" style="margin-top:12px;"></div>
+      <div class="row" style="margin-top:12px;">
+        <button onclick="saveProfile()">Save profile</button>
+        <span id="profHint" class="muted"></span>
+      </div>
+      <div id="profResult"></div>
+    </div>
+  </div>
+
   <div class="card" id="cardSelect">
-    <h2><span class="step">1</span>Choose a map</h2>
+    <h2><span class="step">2</span>Choose a map</h2>
     <div class="row">
       <select id="selCand" style="flex:1; min-width:200px;">
         <option value="">-- choose a detected map --</option>
@@ -96,12 +131,12 @@
   </div>
 
   <div class="card" id="cardResult" style="display:none;">
-    <h2><span class="step">2</span>Validation &amp; country coverage</h2>
+    <h2><span class="step">3</span>Validation &amp; country coverage</h2>
     <div id="resultBody"></div>
   </div>
 
   <div class="card" id="cardConvert" style="display:none;">
-    <h2><span class="step">3</span>Enable search + coverage map</h2>
+    <h2><span class="step">4</span>Enable search + coverage map</h2>
     <p class="muted">Converts only <code>PRODUCT.NDS</code> (~100 MB) into
        <code>_work/</code>; the heavy region databases are <b>not</b> converted.
        One-time, then directly available again.</p>
@@ -112,7 +147,7 @@
   </div>
 
   <div class="card" id="cardCoverage" style="display:none;">
-    <h2><span class="step">4</span>Coverage map</h2>
+    <h2><span class="step">5</span>Coverage map</h2>
     <div class="row">
       <button class="ghost" onclick="showCoverage(false)">Show map</button>
       <button class="ghost" onclick="showCoverage(true)">Re-render</button>
@@ -125,7 +160,7 @@
   </div>
 
   <div class="card" id="cardSearch" style="display:none;">
-    <h2><span class="step">5</span>Search place name</h2>
+    <h2><span class="step">6</span>Search place name</h2>
     <div class="row">
       <input type="text" id="inQ" placeholder="e.g. Nijmegen" onkeydown="if(event.key==='Enter')doSearch()">
       <select id="selMode">
@@ -143,11 +178,11 @@
   </div>
 
   <div class="card" id="cardUpdates">
-    <h2><span class="step">6</span>Update-check &amp; download</h2>
+    <h2><span class="step">7</span>Update-check &amp; download</h2>
     <p class="muted">Known releases with direct download links on the VW server
        (<a href="https://www.seatcupra.net/forums/threads/updating-the-inbuilt-mib2-satnav-mib2-tricks-and-mib1.388586/page-165" target="_blank" rel="noopener">source: SEATCUPRA.NET p.165</a>).
        Downloaded files land in <code>downloads/</code> and become directly
-       selectable in step 1. The SD-updater (step 7) installs from that same folder.</p>
+       selectable in step 2. The SD-updater (step 8) installs from that same folder.</p>
     <div class="row">
       <button class="ghost" onclick="loadUpdates(true)">Refresh status (online check)</button>
       <button class="ghost" onclick="loadUpdates(false)">Local list only</button>
@@ -162,7 +197,7 @@
   </div>
 
   <div class="card" id="cardSd">
-    <h2><span class="step">7</span>Update SD card (cardreader)</h2>
+    <h2><span class="step">8</span>Update SD card (cardreader)</h2>
     <p class="muted">Choose a local package from <code>downloads/</code>. The card is
        first fully backed up to <code>BACKUP/SDcard_&lt;date&gt;/</code>, then the
        existing <code>maps/</code> are replaced and, if your profile says so
@@ -189,7 +224,7 @@
   </div>
 
   <div class="card" id="cardCleanup">
-    <h2><span class="step">8</span>Cleanup (temporary map data)</h2>
+    <h2><span class="step">9</span>Cleanup (temporary map data)</h2>
     <p class="muted">Only removes derived/extracted data from <code>_work/</code> and
        extracted map folders. <b>Never</b>: <code>BACKUP/</code>, <code>*.zip</code>,
        <code>*.7z</code> or <code>*.img</code>.</p>
@@ -203,6 +238,24 @@
   </div>
 
 </main>
+
+<div id="browseModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border:1px solid #334155; border-radius:10px; padding:16px 18px; width:min(640px, 92vw); max-height:82vh; display:flex; flex-direction:column;">
+    <div class="row" style="justify-content:space-between; align-items:center;">
+      <h2 style="margin:0; font-size:16px;">Select a folder</h2>
+      <button class="ghost" onclick="closeBrowse()">Close</button>
+    </div>
+    <div id="browsePath" class="muted" style="margin:8px 0; word-break:break-all; font-size:13px;"></div>
+    <div id="browseBody" style="overflow:auto; flex:1; min-height:220px; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:4px;"></div>
+    <div class="row" style="margin-top:12px;">
+      <button class="ghost" id="btnBrowseUp" onclick="browseUp()">Up</button>
+      <button class="ghost" id="btnBrowseHome" onclick="browseTo('')">Home</button>
+      <button id="btnBrowsePick" onclick="pickBrowse()">Use this folder</button>
+      <span id="browseInfo" class="muted"></span>
+    </div>
+  </div>
+</div>
+
 <footer id="serverFooter">
   <span>Local server running on <code id="serverHost"></code>.</span>
   <button class="ghost" onclick="stopServer()">Stop server</button>
@@ -239,6 +292,283 @@ function setMsgHTML(el, cls, html) {
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g,
     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+/* ---- step 1: car profile (auto-setup from SD card / backup) ---- */
+let prof = null;
+let profOverallSrc = null;
+
+const PROF_FIELDS = [
+  ["make", "Make"],
+  ["nav_series", "Navigation series"],
+  ["cartography", "Cartography"],
+  ["part_number", "Part number"],
+  ["region_prefix", "Region prefix"],
+  ["original_release", "Original release"],
+  ["card_size_gb", "SD card size (GB)"],
+];
+
+const PROF_HELP = {
+  make: "Not stored on the card. Optional, display only.",
+  nav_series: "Always 'MIB2 Standard (DiscoverMedia2)' for this unit. "
+    + "Fill in manually only if you have a different unit (e.g. MIB2 High).",
+  cartography: "Always 'TomTom' for the Standard stream.",
+  part_number: "Detected from the card's dbinfo.txt. Override only if the "
+    + "card is not the car's original one.",
+  region_prefix: "Detected from the card's system name. Edit only for "
+    + "non-ECE regions (e.g. NAR, APN, SA).",
+  original_release: "Detected from dbinfo.txt (version + system name). "
+    + "Edit if detection looks wrong.",
+  card_size_gb: "Auto-measured when a real SD card is inserted; defaults "
+    + "to 16 for a backup folder. Set your actual card size (8/16/32/64/128) "
+    + "if different - used for the fit-on-card check.",
+};
+
+async function loadProfile() {
+  const d = await api("/api/profile");
+  const st = document.getElementById("profStatus");
+  if (d.profile_set) {
+    st.className = "info";
+    st.textContent = "Configured: " + d.config_source
+      + (d.overall_backup_present
+         ? " (OVERALL.NDS backup present)" : " (no OVERALL.NDS backup)");
+  } else {
+    st.className = "msg warn";
+    st.textContent = "No car profile configured yet. Detect it from your SD "
+      + "card or a backup folder below.";
+  }
+  const sel = document.getElementById("profSourceSel");
+  sel.innerHTML = '<option value="">-- choose a detected folder --</option>'
+    + (d.sources || []).map(s =>
+        '<option value="' + esc(s.path) + '">' + esc(s.label) + "</option>").join("");
+}
+
+function profField(label, input, help) {
+  const div = document.createElement("div");
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  lab.className = "muted";
+  if (help) {
+    const h = document.createElement("span");
+    h.className = "help";
+    h.textContent = "?";
+    h.title = help;
+    lab.appendChild(h);
+  }
+  div.append(lab, input);
+  return div;
+}
+
+function profInputs() {
+  const form = document.getElementById("profFields");
+  form.innerHTML = "";
+  for (const [key, label] of PROF_FIELDS) {
+    const inp = document.createElement("input");
+    inp.type = key === "card_size_gb" ? "number" : "text";
+    inp.value = prof[key] ?? "";
+    inp.dataset.field = key;
+    if (key === "make") inp.placeholder = "e.g. SEAT / VW / Škoda / Audi";
+    form.appendChild(profField(label, inp, PROF_HELP[key]));
+  }
+  const wa = document.createElement("label");
+  wa.className = "check";
+  wa.title = "Replace maps/EEC/EEC_WLD/OVERALL.NDS with the original after "
+    + "copying the new maps - pairs the unit to its original release. Needed "
+    + "for units from before ~2019 (versions < 1520); auto-enabled on "
+    + "detected old cards. Leave checked unless the unit accepts the new "
+    + "release directly.";
+  wa.innerHTML = '<input type="checkbox" id="profWa"> '
+    + "OVERALL.NDS workaround (unit paired to the original map release)";
+  form.appendChild(wa);
+  const overall = document.createElement("input");
+  overall.type = "text";
+  overall.id = "profOverall";
+  overall.value = prof.workaround?.overall_backup || "";
+  overall.placeholder = profOverallSrc
+    ? "auto-copied from the selected folder on save"
+    : "path to the original OVERALL.NDS";
+  const overallDiv = profField("Original OVERALL.NDS backup", overall,
+    "Where the original OVERALL.NDS is kept for the workaround. Auto-copied "
+    + "from the selected folder on Save when the workaround is on. Fill in a "
+    + "path manually only when the workaround is enabled but no original was "
+    + "found on the source (e.g. the card was already updated).");
+  const overallStatus = document.createElement("div");
+  overallStatus.id = "profOverallStatus";
+  overallStatus.className = "hint";
+  overallDiv.appendChild(overallStatus);
+  form.appendChild(overallDiv);
+  const wanted = document.createElement("input");
+  wanted.type = "text";
+  wanted.id = "profWanted";
+  wanted.value = (prof.wanted_countries || []).join(", ");
+  wanted.placeholder = "NL, DE, BE, LU, GB, IE, FR, AT, CH";
+  form.appendChild(profField("Wanted countries (comma-separated ISO codes)",
+                             wanted,
+    "Countries the map must cover (2- or 3-letter ISO codes). Auto-filled "
+    + "from the detected card's coverage; trim before saving to set your "
+    + "own target list."));
+  const box = document.getElementById("profWa");
+  box.checked = !!prof.workaround?.enabled;
+  const renderOverallStatus = () => {
+    const s = document.getElementById("profOverallStatus");
+    if (!box.checked) { s.textContent = ""; return; }
+    if (profOverallSrc) {
+      s.textContent = "Found on the source - copied to the backup folder on Save.";
+      s.className = "hint ok";
+    } else if (prof.workaround?.overall_backup) {
+      s.textContent = "Using existing backup: " + prof.workaround.overall_backup;
+      s.className = "hint";
+    } else {
+      s.textContent = "No original OVERALL.NDS found on the source - "
+        + "enter a path to a stored original (e.g. from a backup of the "
+        + "original card).";
+      s.className = "hint warn";
+    }
+  };
+  const toggleOverall = () => {
+    overallDiv.style.display = box.checked ? "" : "none";
+    renderOverallStatus();
+  };
+  box.onchange = toggleOverall;
+  toggleOverall();
+}
+
+async function detectFrom(path) {
+  const body = path ? {path} : {};
+  const form = document.getElementById("profForm");
+  const res = document.getElementById("profResult");
+  setMsgHTML(res, "ok", '<span class="spinner"></span>Reading the folder...');
+  const d = await api("/api/profile/detect", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body),
+  });
+  if (!d.ok) { setMsg(res, "err", d.error || "detect failed"); return; }
+  prof = d.car;
+  profOverallSrc = d.overall_src;
+  form.style.display = "";
+  profInputs();
+  let msg = "Detected from " + d.source;
+  if (d.overall_src) {
+    msg += "\nThe original OVERALL.NDS will be copied to "
+      + (d.overall_target || "the backup folder") + " on save.";
+  }
+  if (d.warnings && d.warnings.length) msg += "\n" + d.warnings.join("\n");
+  setMsg(res, "ok", msg);
+}
+
+async function detectProfile(mode) {
+  if (mode === "sd") { await detectFrom(null); return; }
+  const p = document.getElementById("profSourceSel").value;
+  if (!p) {
+    setMsg(document.getElementById("profResult"), "err",
+      "Choose a detected folder from the dropdown, or use 'Browse folders...'.");
+    return;
+  }
+  await detectFrom(p);
+}
+
+/* ---- folder browser (localhost only) ---- */
+let browsePath = "";
+let browseParent = null;
+let browseDrives = null;
+
+function showBrowse(show) {
+  document.getElementById("browseModal").style.display = show ? "flex" : "none";
+}
+
+function openBrowse() {
+  browsePath = "";
+  showBrowse(true);
+  loadBrowse();
+}
+
+function closeBrowse() {
+  showBrowse(false);
+}
+
+function browseTo(p) {
+  browsePath = p || "";
+  loadBrowse();
+}
+
+function browseUp() {
+  if (browseParent) browsePath = browseParent;
+  else if (browseDrives) browsePath = "";
+  loadBrowse();
+}
+
+async function loadBrowse() {
+  const info = document.getElementById("browseInfo");
+  setMsgHTML(info, "ok", '<span class="spinner"></span>Loading...');
+  const q = browsePath ? "?path=" + encodeURIComponent(browsePath) : "";
+  const d = await api("/api/browse" + q);
+  if (!d.ok) {
+    info.className = "msg err";
+    info.textContent = d.error;
+    return;
+  }
+  browsePath = d.path;
+  browseParent = d.parent;
+  browseDrives = d.drives;
+  document.getElementById("browsePath").textContent = d.path;
+  document.getElementById("btnBrowseUp").disabled =
+    !d.parent && !(d.drives || []).length;
+  let html = "";
+  for (const dr of d.drives || []) {
+    html += '<div class="res-row" style="padding:6px 8px;" data-p="'
+      + esc(dr.path) + '" onclick="browseTo(this.dataset.p)">&#128447; '
+      + esc(dr.name) + "</div>";
+  }
+  for (const e of d.entries) {
+    html += '<div class="res-row" style="padding:6px 8px;" data-p="'
+      + esc(e.path) + '" onclick="browseTo(this.dataset.p)">&#128193; '
+      + esc(e.name) + "</div>";
+  }
+  if (!html) html = '<div class="info" style="padding:8px;">(no subfolders)</div>';
+  document.getElementById("browseBody").innerHTML = html;
+  info.className = "muted";
+  info.textContent = d.entries.length
+    ? d.entries.length + " subfolder(s)" : "";
+}
+
+async function pickBrowse() {
+  if (!browsePath) {
+    setMsg(document.getElementById("profResult"), "err",
+      "Go into a folder first, then press 'Use this folder'.");
+    return;
+  }
+  closeBrowse();
+  await detectFrom(browsePath);
+}
+
+async function saveProfile() {
+  if (!prof) return;
+  const car = JSON.parse(JSON.stringify(prof));
+  document.querySelectorAll("#profFields [data-field]").forEach(inp => {
+    const k = inp.dataset.field;
+    if (k === "card_size_gb") car[k] = parseInt(inp.value, 10) || 16;
+    else car[k] = inp.value.trim();
+  });
+  const box = document.getElementById("profWa");
+  car.workaround = {
+    enabled: box.checked,
+    overall_backup: box.checked
+      ? document.getElementById("profOverall").value.trim() : "",
+  };
+  car.wanted_countries = document.getElementById("profWanted").value.split(",")
+    .map(s => s.trim().toUpperCase()).filter(Boolean);
+  const res = document.getElementById("profResult");
+  setMsgHTML(res, "ok", '<span class="spinner"></span>Saving...');
+  const d = await api("/api/profile/save", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({car, overall_src: profOverallSrc}),
+  });
+  if (!d.ok) { setMsg(res, "err", d.error || "save failed"); return; }
+  document.getElementById("profHint").textContent = "saved to " + d.config_path;
+  let msg = "Profile saved. The compatibility check now uses this car.";
+  if (d.warnings && d.warnings.length) msg += "\n" + d.warnings.join("\n");
+  setMsg(res, "ok", msg);
+  loadProfile();
 }
 
 async function loadMap() {
@@ -931,6 +1261,7 @@ async function doCleanup() {
 loadUpdates(false);
 loadSd(false);
 loadCleanup();
+loadProfile();
 
 /* ---- local: stop server + closing warning ---- */
 const IS_LOOPBACK = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(location.hostname);

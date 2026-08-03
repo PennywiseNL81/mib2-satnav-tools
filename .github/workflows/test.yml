@@ -52,13 +52,39 @@ jobs:
         env:
           MIB2_CONFIG: "${{ runner.temp }}/ci_config.json"
         run: |
-          mkdir -p BACKUP
-          printf '{"dirs":{"work":"_work","downloads":"downloads","backup":"BACKUP"}}\n' \
+          mkdir -p "$GITHUB_WORKSPACE/BACKUP"
+          printf '{"dirs":{"work":"%s/_work","downloads":"%s/downloads","backup":"%s/BACKUP"}}\n' \
+            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" \
             > "$MIB2_CONFIG"
           python sd-updater/update_sd.py install \
             --source tests/fixtures/mini_map \
             --sd tests/fixtures/mini_map \
             --dry-run --yes
+
+      - name: Smoke test - car-profile auto-setup (workaround path)
+        env:
+          MIB2_CONFIG: "${{ runner.temp }}/ci_profile_config.json"
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/BACKUP"
+          printf '{"dirs":{"work":"%s/_work","downloads":"%s/downloads","backup":"%s/BACKUP"}}\n' \
+            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" \
+            > "$MIB2_CONFIG"
+          out=$(python sd-updater/update_sd.py profile \
+            --from tests/fixtures/mini_card_0635 --yes)
+          echo "$out"
+          grep -q "6P0919866H" <<< "$out"
+          grep -q "workaround: enabled" <<< "$out"
+          grep -q "0635 (ECE1 2016/17)" <<< "$out"
+          test -f "$GITHUB_WORKSPACE/BACKUP/original/maps/EEC/EEC_WLD/OVERALL.NDS"
+          python - <<'PY'
+import json, os
+cfg = json.load(open(os.environ["MIB2_CONFIG"]))
+assert cfg["car"]["part_number"] == "6P0919866H"
+assert cfg["car"]["workaround"]["enabled"] is True
+assert cfg["car"]["original_release"] == "0635 (ECE1 2016/17)"
+assert cfg["car"]["region_prefix"] == "ECE"
+print("profile config ok")
+PY
 
       - name: Smoke test - web UI start + shutdown
         run: |

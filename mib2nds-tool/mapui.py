@@ -352,6 +352,130 @@ def api_sd_sources():
     return jsonify({"ok": True, "sources": sources})
 
 
+@app.get("/api/browse")
+def api_browse():
+    addr = request.remote_addr or ""
+    if addr not in ("127.0.0.1", "::1"):
+        return jsonify({"ok": False, "error": "browsing only allowed via "
+                                               "localhost"}), 403
+    path = _expand(request.args.get("path")) or os.path.expanduser("~")
+    path = os.path.abspath(path)
+    if not os.path.isdir(path):
+        return jsonify({"ok": False, "error": f"not a directory: {path}"}), 400
+    entries = []
+    try:
+        for name in sorted(os.listdir(path)):
+            p = os.path.join(path, name)
+            if os.path.isdir(p):
+                entries.append({"name": name, "path": p})
+    except OSError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    parent = os.path.dirname(path)
+    drives = None
+    if parent == path:
+        parent = None
+        if os.name == "nt":
+            drives = _win_drives()
+    return jsonify({"ok": True, "path": path, "parent": parent,
+                    "drives": drives, "entries": entries})
+
+
+def _win_drives() -> list:
+    """Detected Windows drive roots (used at the top of the folder browser)."""
+    out = []
+    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        p = f"{letter}:\\"
+        if os.path.isdir(p):
+            out.append({"name": p, "path": p})
+    return out
+
+
+@app.get("/api/profile")
+def api_profile():
+    overall = mapdata.overall_backup_path()
+    car = mapdata.car_profile()
+    return jsonify({
+        "ok": True,
+        "configured": bool(mapdata.config_source()),
+        "profile_set": bool(car["part_number"] or car["wanted_countries"]
+                            or car["original_release"]),
+        "config_source": mapdata.config_source(),
+        "car": car,
+        "overall_backup": overall,
+        "overall_backup_present": bool(overall and os.path.isfile(overall)),
+        "sources": _profile_sources(),
+    })
+
+
+def _profile_sources() -> list:
+    """Candidate folders to detect a car profile from (no typing needed).
+
+    Only things that actually describe the *car* are listed: the detected
+    SD card, and backup folders under BACKUP/ that contain a maps/ tree
+    (the tool creates these automatically on every SD-card update, so the
+    list grows as the user works). Extracted map packages are deliberately
+    NOT listed -- they describe the map, not the car.
+    """
+    out = []
+    try:
+        sd = update_sd.detect_sd()
+        if sd:
+            out.append({"label": f"SD card: {update_sd.version_label(sd['info'])}",
+                        "path": sd["mount"]})
+    except Exception:
+        pass
+    if os.path.isdir(mapdata.BACKUP_DIR):
+        for name in sorted(os.listdir(mapdata.BACKUP_DIR)):
+            p = os.path.join(mapdata.BACKUP_DIR, name)
+            if (os.path.isdir(p)
+                    and os.path.isdir(os.path.join(p, "maps"))):
+                out.append({"label": f"Backup: {name}", "path": p})
+    return out
+
+
+@app.post("/api/profile/detect")
+def api_profile_detect():
+    data = request.get_json(force=True, silent=True) or {}
+    path = _expand(data.get("path")) or None
+    if not path:
+        sd = update_sd.detect_sd()
+        if sd:
+            path = sd["mount"]
+    if not path:
+        return jsonify({"ok": False,
+                        "error": "no SD card found and no path given; insert "
+                                 "the card or enter a backup folder"}), 400
+    if not os.path.isdir(path):
+        return jsonify({"ok": False,
+                        "error": f"not a folder: {path}"}), 400
+    try:
+        derived = mapdata.derive_profile(path)
+    except (mapdata.MapError, OSError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    overall_target = None
+    if derived.get("overall_src"):
+        overall_target = os.path.join(
+            mapdata.BACKUP_DIR, "original", "maps", "EEC", "EEC_WLD",
+            "OVERALL.NDS")
+    return jsonify({"ok": True, "path": path, **derived,
+                    "overall_target": overall_target})
+
+
+@app.post("/api/profile/save")
+def api_profile_save():
+    data = request.get_json(force=True, silent=True) or {}
+    car = data.get("car")
+    if not isinstance(car, dict):
+        return jsonify({"ok": False, "error": "missing car profile"}), 400
+    try:
+        result = mapdata.save_profile(car, data.get("overall_src"))
+    except mapdata.MapError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except OSError as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True, **result})
+
+
 @app.post("/api/sd/install")
 def api_sd_install():
     data = request.get_json(force=True, silent=True) or {}

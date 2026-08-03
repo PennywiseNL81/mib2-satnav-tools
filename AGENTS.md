@@ -11,6 +11,13 @@ in a larger personal archive — the `mib2-satnav-tools/` folder *is* the git
 repo. Portability: the code runs on Linux and Windows (see `osutil.py`);
 CI smoke-tests both via GitHub Actions.
 
+> ## ⚠️ USE AT YOUR OWN RISK
+>
+> The SD-card updater overwrites the card contents. Always keep the original
+> card backup, use the correct stream/region, and follow the official forum
+> procedure (`MAPS.md`). No warranty; the user is fully responsible for the
+> car and the SD card.
+
 ## Layout
 
 ```
@@ -38,6 +45,7 @@ mib2-satnav-tools/
 │   ├── templates/map.html    # UI page
 │   └── README.md
 ├── tests/fixtures/mini_map/  # tiny fake maps tree for CI smoke tests
+├── tests/fixtures/mini_card_0635/  # tiny fake "old" SD-card backup (workaround path)
 ├── .github/workflows/test.yml # Linux + Windows test matrix
 └── requirements.txt
 ```
@@ -52,7 +60,8 @@ Everything user-specific lives in a `config.json` that is **not** committed:
 See `config.example.json` for the full schema. Important keys:
 
 - `dirs.work` / `dirs.downloads` / `dirs.backup` — output/cache and package
-  locations (relative entries are anchored to the repo root).
+  locations. Relative entries are anchored to the workspace root (the repo's
+  parent when writable, else the repo root), keeping them out of the git repo.
 - `car.*` — the reference-car profile used by the compatibility check:
   `make`, `nav_series`, `cartography`, `part_number`, `region_prefix`
   (default `ECE`), `original_release`, `card_size_gb` (default 16),
@@ -75,8 +84,18 @@ Windows the interpreter is `mib2nds-tool\.venv\Scripts\python.exe`:
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> countries
 mib2nds-tool/.venv/bin/python sd-updater/update_sd.py detect|list|install
+mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile   # auto-create config.json from the SD card
 mib2nds-tool/.venv/bin/python mib2nds-tool/mapui.py        # -> http://127.0.0.1:5000
 ```
+
+The car profile can be auto-created instead of hand-editing `config.json`:
+`update_sd.py profile` reads the SD card (or `--from <backup-folder>`),
+derives the part number, region, original release, card size, covered
+countries and the `OVERALL.NDS` workaround (enabled for pre-2019 releases)
+and writes `config.json` (target: `MIB2_CONFIG` if set, else next to the
+repo). The web UI (step 1, "Car profile") exposes the same flow with a
+form: detect, edit, save. `mapdata.derive_profile()` / `save_profile()`
+are the shared implementation and write nothing on their own.
 
 `query.py coverage` needs Natural Earth 50m country boundaries in a GeoJSON
 file (`NE_COUNTRIES` env var, or `dirs.ne_geojson` in the config); `install.py
@@ -109,3 +128,7 @@ labels fall back to numbers.
 layout with empty `.NDS` files) that stands in for a real package or SD card
 in CI. `update_sd.py detect` finds nothing without it (exit 1), so the "no
 card" path and the "with fixture" path are both covered.
+`tests/fixtures/mini_card_0635/` is a tiny fake *old* card backup (version
+`0635`, part `6P0919866H`, an `EEC/EEC_WLD/OVERALL.NDS`) used to exercise
+`update_sd.py profile`: it must detect the workaround and copy the original
+OVERALL.NDS into the configured backup dir.
