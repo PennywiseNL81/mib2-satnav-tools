@@ -5,9 +5,11 @@ validation, country-coverage extraction, an optional NDS→SQLite conversion
 for place-name search / coverage maps, a compatibility check against a
 configured car profile, a release/update checker, and an SD-card updater.
 
-The UI and CLI text are in Dutch; public docs (README, this file) are in
-English. The project is not a git repo here only because the tool lives in a
-larger personal archive — the `mib2-satnav-tools/` folder *is* the git repo.
+The UI and CLI text are in English; public docs (README, this file) are in
+English too. The project is not a git repo here only because the tool lives
+in a larger personal archive — the `mib2-satnav-tools/` folder *is* the git
+repo. Portability: the code runs on Linux and Windows (see `osutil.py`);
+CI smoke-tests both via GitHub Actions.
 
 ## Layout
 
@@ -18,19 +20,25 @@ mib2-satnav-tools/
 ├── MAPS.md                   # forum links + official VW download URL pattern
 ├── ANALYSE.md                # technical analysis of the NDS format
 ├── updates.json              # registry of known releases + download URLs
-├── start-mapui.sh            # start the web UI (uses the venv if present)
-├── stop-mapui.sh             # stop the web UI on port 5000
+├── install.py                # one-command setup (venv + deps + 7z check)
+├── setup.sh / setup.bat      # wrappers around install.py
+├── start-mapui.sh / .bat     # start the web UI (uses the venv if present)
+├── stop-mapui.sh / .bat      # stop the web UI on port 5000 (via stop_mapui.py)
 ├── sd-updater/
 │   └── update_sd.py          # SD-card updater (CLI + web tab)
 ├── mib2nds-tool/
 │   ├── mapui.py              # web UI (map select, coverage, search, update-check, SD tab)
 │   ├── mapdata.py            # shared logic: config, validation, coverage, compat, sources
+│   ├── osutil.py             # OS portability: cmd runner, copy/verify, SD mounts, 7-Zip lookup
 │   ├── updates.py            # registry load, online probe, resumable download
 │   ├── nds2sqlite.py         # NDS (zipvfs + AES) -> SQLite converter
 │   ├── ndsgeo.py             # NDS morton code <-> lat/lon + region/country map
 │   ├── query.py              # CLI: search | coverage | countries | compat
+│   ├── stop_mapui.py         # POST /api/shutdown to the UI server
 │   ├── templates/map.html    # UI page
 │   └── README.md
+├── tests/fixtures/mini_map/  # tiny fake maps tree for CI smoke tests
+├── .github/workflows/test.yml # Linux + Windows test matrix
 └── requirements.txt
 ```
 
@@ -60,7 +68,8 @@ the install plan / SD updater when `car.workaround.enabled` is true and an
 ## Commands
 
 The scripts import each other and run from the repo root (a venv in
-`mib2nds-tool/.venv` is created from `requirements.txt` if present):
+`mib2nds-tool/.venv` is created from `requirements.txt` if present). On
+Windows the interpreter is `mib2nds-tool\.venv\Scripts\python.exe`:
 
 ```bash
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
@@ -70,8 +79,9 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/mapui.py        # -> http://127.0.0.1
 ```
 
 `query.py coverage` needs Natural Earth 50m country boundaries in a GeoJSON
-file (`NE_COUNTRIES` env var, or `dirs.ne_geojson` in the config); without
-it the map renders without borders and region labels fall back to numbers.
+file (`NE_COUNTRIES` env var, or `dirs.ne_geojson` in the config); `install.py
+--ne` downloads it. Without it the map renders without borders and region
+labels fall back to numbers.
 
 ## Rules
 
@@ -88,3 +98,14 @@ it the map renders without borders and region labels fall back to numbers.
   files afterwards.
 - Personal profiles and map-archive copies are never committed; keep them in
   `config.json` and outside the repo.
+- Run the smoke tests after changes (`tests/fixtures/mini_map` + CI workflow
+  in `.github/workflows/test.yml`): compile every module and exercise the
+  fixture through `query.py compat` and `update_sd.py install --dry-run`.
+- All user-facing strings (UI, CLI, docs) are English; keep them that way.
+
+## Tests
+
+`tests/fixtures/mini_map/` is a tiny fake maps tree (a valid `maps/00/nds/`
+layout with empty `.NDS` files) that stands in for a real package or SD card
+in CI. `update_sd.py detect` finds nothing without it (exit 1), so the "no
+card" path and the "with fixture" path are both covered.

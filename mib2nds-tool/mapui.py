@@ -20,18 +20,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
 import time
 import traceback
 import uuid
+import webbrowser
 
 from werkzeug.serving import make_server
 
 from flask import Flask, jsonify, render_template, request, send_file
 
 import mapdata
+import osutil
 import updates
 
 sys.path.insert(0, os.path.join(mapdata.PROJECT_ROOT, "sd-updater"))
@@ -61,8 +64,8 @@ def _load_map(path):
     nds_out = mapdata.nds_out_dir(source)
     if not _search_ready(nds_out):
         raise mapdata.MapError(
-            "deze map is nog niet geconverteerd; klik eerst op "
-            "'Zoeken + dekkingskaart inschakelen'")
+            "this map has not been converted yet; click "
+            "'Enable search + coverage map' first")
     return mapdata.Map(source, nds_out, ne_path=mapdata.DEFAULT_NE)
 
 
@@ -103,9 +106,9 @@ def api_select():
     data = request.get_json(force=True, silent=True) or {}
     path = _expand(data.get("path"))
     if not path:
-        return jsonify({"ok": False, "error": "geef een pad op"}), 400
+        return jsonify({"ok": False, "error": "provide a path"}), 400
     if not os.path.exists(path):
-        return jsonify({"ok": False, "error": f"pad bestaat niet: {path}"}), 400
+        return jsonify({"ok": False, "error": f"path does not exist: {path}"}), 400
     try:
         source = mapdata.resolve_source(path)
     except mapdata.MapError as e:
@@ -120,7 +123,7 @@ def api_select():
         mapdata.ensure_countries(source, nds_out)
     except Exception as e:
         return jsonify(
-            {"ok": False, "error": f"landen-check mislukt: {e}\n"
+            {"ok": False, "error": f"country check failed: {e}\n"
              f"{traceback.format_exc()}"}), 500
     regions = mapdata.read_countries(nds_out, val["regions"])
     for r in regions:
@@ -134,7 +137,7 @@ def api_select():
         compat = mapdata.compatibility_check(source, wanted)
     except Exception as e:
         return jsonify(
-            {"ok": False, "error": f"compatibiliteitscheck mislukt: {e}\n"
+            {"ok": False, "error": f"compatibility check failed: {e}\n"
              f"{traceback.format_exc()}"}), 500
     return jsonify({
         "ok": True,
@@ -156,7 +159,7 @@ def api_compat():
     data = request.get_json(force=True, silent=True) or {}
     path = _expand(data.get("path"))
     if not path or not os.path.exists(path):
-        return jsonify({"ok": False, "error": "pad bestaat niet"}), 400
+        return jsonify({"ok": False, "error": "path does not exist"}), 400
     try:
         source = mapdata.resolve_source(path)
     except mapdata.MapError as e:
@@ -168,7 +171,7 @@ def api_compat():
         compat = mapdata.compatibility_check(source, wanted)
     except Exception as e:
         return jsonify(
-            {"ok": False, "error": f"compatibiliteitscheck mislukt: {e}\n"
+            {"ok": False, "error": f"compatibility check failed: {e}\n"
              f"{traceback.format_exc()}"}), 500
     return jsonify({"ok": True, "compat": compat})
 
@@ -178,7 +181,7 @@ def api_convert():
     data = request.get_json(force=True, silent=True) or {}
     path = _expand(data.get("path"))
     if not path or not os.path.exists(path):
-        return jsonify({"ok": False, "error": "pad bestaat niet"}), 400
+        return jsonify({"ok": False, "error": "path does not exist"}), 400
     try:
         source = mapdata.resolve_source(path)
     except mapdata.MapError as e:
@@ -220,7 +223,7 @@ def api_status(job_id):
     with JOBS_LOCK:
         state = JOBS.get(job_id)
     if state is None:
-        return jsonify({"ok": False, "error": "onbekende job"}), 404
+        return jsonify({"ok": False, "error": "unknown job"}), 404
     return jsonify({"ok": True, **state, "log_tail": state["log"][-40:]})
 
 
@@ -269,8 +272,8 @@ def api_discover():
                 state["result"] = result
                 state["done"] = state["total"]
                 state["log"].append(
-                    f"klaar: {result['probed']} URL's gecheckt, "
-                    f"{len(result['found'])} online gevonden")
+                    f"done: probed {result['probed']} URLs, "
+                    f"found {len(result['found'])} online")
         except Exception as e:
             with JOBS_LOCK:
                 state["state"] = "error"
@@ -285,13 +288,13 @@ def api_download():
     data = request.get_json(force=True, silent=True) or {}
     url = data.get("url")
     if not url:
-        return jsonify({"ok": False, "error": "geef een url op"}), 400
+        return jsonify({"ok": False, "error": "provide a url"}), 400
     pkg = next((p for p in updates.load_registry().get("packages", [])
                 if p.get("url") == url), None)
     if not pkg:
-        return jsonify({"ok": False, "error": "url niet in de registry"}), 400
+        return jsonify({"ok": False, "error": "url not in the registry"}), 400
     if updates.local_path(pkg):
-        return jsonify({"ok": False, "error": "bestand staat al in "
+        return jsonify({"ok": False, "error": "file already exists in "
                         "downloads/"}), 400
     job_id = uuid.uuid4().hex
     state = {"state": "running", "done": 0, "total": 0, "log": [],
@@ -313,7 +316,7 @@ def api_download():
             updates.download(url, progress=progress, log=log)
             with JOBS_LOCK:
                 state["state"] = "done"
-                state["log"].append("download klaar in downloads/")
+                state["log"].append("download finished in downloads/")
         except Exception as e:
             with JOBS_LOCK:
                 state["state"] = "error"
@@ -335,6 +338,8 @@ def api_sd_status():
         "overall_backup_present": bool(overall and os.path.isfile(overall)),
         "install_steps": plan["steps"],
         "manual_steps": plan["manual"],
+        "sevenzip": osutil.find_7z(),
+        "rsync": shutil.which("rsync") is not None,
     })
 
 
@@ -354,11 +359,11 @@ def api_sd_install():
     sd_mount = _expand(data.get("sd")) or None
     dry_run = bool(data.get("dry_run"))
     if not source_path or not os.path.exists(source_path):
-        return jsonify({"ok": False, "error": "geen geldig bronpad"}), 400
+        return jsonify({"ok": False, "error": "no valid source path"}), 400
     sd = update_sd.detect_sd(sd_mount)
     if not sd:
         return jsonify({"ok": False,
-                        "error": "geen MIB2-SD-kaart gevonden (mount met "
+                        "error": "no MIB2 SD card found (a mount containing "
                                  "maps/00/nds/dbinfo.txt)"}), 400
     weights = {"check": 0, "backup": 35, "extract": 10, "copy": 45,
                "workaround": 5, "verify": 5}
@@ -423,9 +428,9 @@ def api_verify_md5():
         return jsonify({"ok": False, "error": str(e)}), 400
     manifest = source.md5_manifest()
     if not manifest:
-        return jsonify({"ok": False, "error": "md5-check kan alleen voor "
-                        "uitgepakte mappen met een .md5sum.txt in de "
-                        "pakketmap"}), 400
+        return jsonify({"ok": False, "error": "md5 check only works for "
+                        "extracted folders with a .md5sum.txt in the "
+                        "package folder"}), 400
     job_id = uuid.uuid4().hex
     state = {"state": "running", "done": 0, "total": 0, "log": [],
              "error": None, "manifest": os.path.basename(manifest)}
@@ -496,8 +501,8 @@ def api_coverage():
                 m, png, dpi=int(request.args.get("dpi", 130)),
                 ne_path=mapdata.DEFAULT_NE)
         except Exception as e:
-            return jsonify({"ok": False, "error": f"kaart renderen mislukt: "
-                            f"{e}\n{traceback.format_exc()}"}), 500
+            return jsonify({"ok": False, "error": f"failed to render the "
+                            f"map: {e}\n{traceback.format_exc()}"}), 500
         with open(stats_path, "w") as fh:
             json.dump(stats, fh, ensure_ascii=False)
     else:
@@ -520,8 +525,7 @@ def api_coverage_png():
     if not os.path.exists(png):
         png = os.path.join(meta, "coverage.png")
     if not os.path.exists(png):
-        return jsonify({"ok": False, "error": "kaart is nog niet "
-                        "gegenereerd"}), 404
+        return jsonify({"ok": False, "error": "map not generated yet"}), 404
     return send_file(png, mimetype="image/png")
 
 
@@ -530,10 +534,10 @@ def api_shutdown():
     addr = request.remote_addr or ""
     if addr not in ("127.0.0.1", "::1"):
         return jsonify({"ok": False,
-                        "error": "shutdown alleen toegestaan via localhost"}), 403
+                        "error": "shutdown only allowed via localhost"}), 403
     if _SERVER is None:
         return jsonify({"ok": False,
-                        "error": "de server kan vanaf hier niet gestopt worden"}), 400
+                        "error": "the server cannot be stopped from here"}), 400
 
     def _stop():
         time.sleep(0.3)
@@ -554,9 +558,7 @@ def main():
     args = ap.parse_args()
     url = f"http://{args.host}:{args.port}"
     if not args.no_browser:
-        import threading as _t
-        _t.Timer(0.7, lambda: os.system(
-            f"xdg-open {url} >/dev/null 2>&1 &")).start()
+        threading.Timer(0.7, lambda: webbrowser.open(url)).start()
     print(f"mapui: open {url}")
     global _SERVER
     server = make_server(host=args.host, port=args.port, app=app, threaded=True)

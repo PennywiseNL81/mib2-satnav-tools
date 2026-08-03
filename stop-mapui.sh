@@ -1,13 +1,10 @@
 #!/bin/sh
+# stop-mapui.sh -- stop the mapui server (via its /api/shutdown endpoint).
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PY="$SCRIPT_DIR/mib2nds-tool/.venv/bin/python"
+if [ ! -x "$PY" ]; then
+    PY=python3
+fi
 PORT=${PORT:-5000}
 [ "$1" = "--port" ] && [ -n "$2" ] && PORT=$2
-
-if command -v fuser >/dev/null 2>&1 && fuser -n tcp "$PORT" >/dev/null 2>&1; then
-    fuser -k -TERM -n tcp "$PORT" >/dev/null 2>&1
-    echo "mapui-server gestopt (poort $PORT)."
-elif pkill -f "mib2nds-tool/mapui.py" 2>/dev/null; then
-    echo "mapui-server gestopt."
-else
-    echo "Geen actieve mapui-server gevonden op poort $PORT." >&2
-    exit 1
-fi
+exec "$PY" "$SCRIPT_DIR/mib2nds-tool/stop_mapui.py" --port "$PORT"

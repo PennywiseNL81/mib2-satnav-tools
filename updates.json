@@ -9,7 +9,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU1_2710_V24.7z",
       "size_gb": 7.86,
       "countries": ["ES", "PT", "GI", "AD", "FR", "MC", "NL", "BE", "LU", "IE", "GB", "IS"],
-      "note": "Zuidwest-Europa + Ierland/IJsland (indicator op basis van EU1 2510-analyse)",
+      "note": "South-west Europe + Ireland/Iceland (indicator based on the EU1 2510 analysis)",
       "recommended": false
     },
     {
@@ -20,7 +20,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU2_2710_V24.7z",
       "size_gb": null,
       "countries": [],
-      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "note": "Coverage to be confirmed after selection/analysis",
       "recommended": false
     },
     {
@@ -31,7 +31,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU3_2710_V24.7z",
       "size_gb": null,
       "countries": [],
-      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "note": "Coverage to be confirmed after selection/analysis",
       "recommended": false
     },
     {
@@ -42,7 +42,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL1_2710_V24.7z",
       "size_gb": null,
       "countries": [],
-      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "note": "Coverage to be confirmed after selection/analysis",
       "recommended": false
     },
     {
@@ -53,7 +53,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL2_2710_V24.7z",
       "size_gb": 10.14,
       "countries": ["NLD", "DEU", "BEL", "LUX", "GBR", "IRL", "FRA", "AUT", "CHE"],
-      "note": "Dekt de gangbare gewenste landen (NLD/DEU/BEL/LUX/GBR/IRL/FRA/AUT/CHE); verdict geschikt op een 16 GB-kaart",
+      "note": "Covers the common wanted countries (NLD/DEU/BEL/LUX/GBR/IRL/FRA/AUT/CHE); suitable verdict on a 16 GB card",
       "recommended": false
     },
     {
@@ -64,7 +64,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL3_2710_V24.7z",
       "size_gb": null,
       "countries": [],
-      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "note": "Coverage to be confirmed after selection/analysis",
       "recommended": false
     },
     {
@@ -75,7 +75,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-DL4_2710_V24.7z",
       "size_gb": null,
       "countries": [],
-      "note": "Dekking alleen na selectie/analyse te bevestigen",
+      "note": "Coverage to be confirmed after selection/analysis",
       "recommended": false
     },
     {
@@ -86,7 +86,7 @@
       "url": "https://navigation-maps.volkswagen.com/vw-maps/Update_25_26/DiscoverMedia2_EU-AS_2710_V24.7z",
       "size_gb": null,
       "countries": [],
-      "note": "Europa + Azië (volledig); vereist een 32 GB VAG-kaart",
+      "note": "Europe + Asia (complete); requires a 32 GB VAG card",
       "recommended": false
     }
   ]

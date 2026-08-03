@@ -21,12 +21,14 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import tempfile
 import zipfile
 
 import matplotlib.path
 
 import ndsgeo
 import nds2sqlite
+import osutil
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -94,46 +96,46 @@ EXTRACTED_DIR = os.path.join(DOWNLOAD_DIR, "extracted")
 BACKUP_DIR = _dir_key("backup", "BACKUP")
 DEFAULT_NE = (os.environ.get("NE_COUNTRIES")
               or config().get("dirs", {}).get("ne_geojson")
-              or "/tmp/ne_50m.geojson")
+              or os.path.join(tempfile.gettempdir(), "ne_50m.geojson"))
 
 ISO_NAMES = {
-    "AD": "Andorra", "AL": "Albanië", "AT": "Oostenrijk", "BA": "Bosnië en Herzegovina",
-    "BE": "België", "BG": "Bulgarije", "BY": "Wit-Rusland", "CH": "Zwitserland",
-    "CY": "Cyprus", "CZ": "Tsjechië", "DE": "Duitsland", "DK": "Denemarken",
-    "EE": "Estland", "ES": "Spanje", "FI": "Finland", "FR": "Frankrijk",
-    "GB": "Verenigd Koninkrijk", "GI": "Gibraltar", "GR": "Griekenland",
-    "HR": "Kroatië", "HU": "Hongarije", "IE": "Ierland", "IS": "IJsland",
-    "IT": "Italië", "LI": "Liechtenstein", "LT": "Litouwen", "LU": "Luxemburg",
-    "LV": "Letland", "MC": "Monaco", "MD": "Moldavië", "ME": "Montenegro",
-    "MK": "Noord-Macedonië", "MT": "Malta", "NL": "Nederland", "NO": "Noorwegen",
-    "PL": "Polen", "PT": "Portugal", "RO": "Roemenië", "RS": "Servië",
-    "RU": "Rusland", "SE": "Zweden", "SI": "Slovenië", "SK": "Slowakije",
-    "TR": "Turkije", "UA": "Oekraïne", "XK": "Kosovo", "XXX": "(leeg)",
+    "AD": "Andorra", "AL": "Albania", "AT": "Austria", "BA": "Bosnia and Herzegovina",
+    "BE": "Belgium", "BG": "Bulgaria", "BY": "Belarus", "CH": "Switzerland",
+    "CY": "Cyprus", "CZ": "Czechia", "DE": "Germany", "DK": "Denmark",
+    "EE": "Estonia", "ES": "Spain", "FI": "Finland", "FR": "France",
+    "GB": "United Kingdom", "GI": "Gibraltar", "GR": "Greece",
+    "HR": "Croatia", "HU": "Hungary", "IE": "Ireland", "IS": "Iceland",
+    "IT": "Italy", "LI": "Liechtenstein", "LT": "Lithuania", "LU": "Luxembourg",
+    "LV": "Latvia", "MC": "Monaco", "MD": "Moldova", "ME": "Montenegro",
+    "MK": "North Macedonia", "MT": "Malta", "NL": "Netherlands", "NO": "Norway",
+    "PL": "Poland", "PT": "Portugal", "RO": "Romania", "RS": "Serbia",
+    "RU": "Russia", "SE": "Sweden", "SI": "Slovenia", "SK": "Slovakia",
+    "TR": "Turkey", "UA": "Ukraine", "XK": "Kosovo", "XXX": "(empty)",
 }
 
 ALPHA3_NAMES = {
-    "AND": "Andorra", "ALB": "Albanië", "AUT": "Oostenrijk", "BIH": "Bosnië en Herzegovina",
-    "BEL": "België", "BGR": "Bulgarije", "BLR": "Wit-Rusland", "CHE": "Zwitserland",
-    "CYP": "Cyprus", "CZE": "Tsjechië", "DEU": "Duitsland", "DNK": "Denemarken",
-    "EST": "Estland", "ESP": "Spanje", "FIN": "Finland", "FRA": "Frankrijk",
-    "GBR": "Verenigd Koninkrijk", "GIB": "Gibraltar", "GRC": "Griekenland",
-    "HRV": "Kroatië", "HUN": "Hongarije", "IRL": "Ierland", "ISL": "IJsland",
-    "ITA": "Italië", "LTU": "Litouwen", "LUX": "Luxemburg", "LVA": "Letland",
-    "MCO": "Monaco", "MDA": "Moldavië", "MNE": "Montenegro", "MKD": "Noord-Macedonië",
-    "MLT": "Malta", "NLD": "Nederland", "NOR": "Noorwegen", "POL": "Polen",
-    "PRT": "Portugal", "ROU": "Roemenië", "SRB": "Servië", "RUS": "Rusland",
-    "SWE": "Zweden", "SVN": "Slovenië", "SVK": "Slowakije", "TUR": "Turkije",
-    "UKR": "Oekraïne", "ARM": "Armenië", "AZE": "Azerbeidzjan", "GEO": "Georgië",
-    "KAZ": "Kazachstan", "ISR": "Israël", "JOR": "Jordanië", "LBN": "Libanon",
-    "SYR": "Syrië", "EGY": "Egypte", "LIE": "Liechtenstein",
-    "SMR": "San Marino", "VAT": "Vaticaanstad", "XXX": "(leeg)",
+    "AND": "Andorra", "ALB": "Albania", "AUT": "Austria", "BIH": "Bosnia and Herzegovina",
+    "BEL": "Belgium", "BGR": "Bulgaria", "BLR": "Belarus", "CHE": "Switzerland",
+    "CYP": "Cyprus", "CZE": "Czechia", "DEU": "Germany", "DNK": "Denmark",
+    "EST": "Estonia", "ESP": "Spain", "FIN": "Finland", "FRA": "France",
+    "GBR": "United Kingdom", "GIB": "Gibraltar", "GRC": "Greece",
+    "HRV": "Croatia", "HUN": "Hungary", "IRL": "Ireland", "ISL": "Iceland",
+    "ITA": "Italy", "LTU": "Lithuania", "LUX": "Luxembourg", "LVA": "Latvia",
+    "MCO": "Monaco", "MDA": "Moldova", "MNE": "Montenegro", "MKD": "North Macedonia",
+    "MLT": "Malta", "NLD": "Netherlands", "NOR": "Norway", "POL": "Poland",
+    "PRT": "Portugal", "ROU": "Romania", "SRB": "Serbia", "RUS": "Russia",
+    "SWE": "Sweden", "SVN": "Slovenia", "SVK": "Slovakia", "TUR": "Turkey",
+    "UKR": "Ukraine", "ARM": "Armenia", "AZE": "Azerbaijan", "GEO": "Georgia",
+    "KAZ": "Kazakhstan", "ISR": "Israel", "JOR": "Jordan", "LBN": "Lebanon",
+    "SYR": "Syria", "EGY": "Egypt", "LIE": "Liechtenstein",
+    "SMR": "San Marino", "VAT": "Vatican City", "XXX": "(empty)",
 }
 
 _MEMBER_PREFIX = "00/nds/"
 
 _ISO2_ISO3 = {}
 for _i2, _name in ISO_NAMES.items():
-    if _name == "(leeg)":
+    if _name == "(empty)":
         continue
     for _i3, _name3 in ALPHA3_NAMES.items():
         if _name3 == _name:
@@ -164,7 +166,7 @@ def car_profile() -> dict:
         "region_prefix": cfg.get("region_prefix", "ECE"),
         "original_release": cfg.get("original_release") or "",
         "card_size_gb": int(cfg.get("card_size_gb", 16) or 16),
-        "sd_card": cfg.get("sd_card", "VAG MIB2-SD-kaart (CID-gebonden)"),
+        "sd_card": cfg.get("sd_card", "VAG MIB2 SD card (CID-bound)"),
         "wanted_countries": [_norm_iso(c) for c in (cfg.get("wanted_countries") or [])],
         "workaround": {
             "enabled": bool(wa.get("enabled", False)),
@@ -191,12 +193,12 @@ def overall_backup_path(profile: dict = None) -> str:
 # MIB2 Standard (DiscoverMedia2) releases per the SEATCUPRA.NET resource
 # "Updating the inbuilt Mib2 Satnav" (page 165 + resource page).
 KNOWN_RELEASES = {
-    "0635": "2016/17 - eerste release van de Standard-stroom",
-    "1520": "2019 - eerste 'verloren kaart'-referentie release",
-    "1920": "jun 2021 - uitzondering: excl. Seat-partnummer, laadt NIET op stock firmware",
+    "0635": "2016/17 - first release of the Standard stream",
+    "1520": "2019 - first 'lost map' reference release",
+    "1920": "jun 2021 - exception: excludes Seat part number, does NOT load on stock firmware",
     "2510": "nov 2025 (ECE 2026)",
     "2610": "jun 2026 (2026/27)",
-    "2710": "nov 2026 (2027) - nieuwste",
+    "2710": "nov 2026 (2027) - latest",
 }
 
 
@@ -211,29 +213,29 @@ def install_plan(profile: dict = None) -> dict:
     p = profile or car_profile()
     wa = p["workaround"]
     steps = [
-        "Gebruik de originele VAG-SD-kaart (of een andere VAG-MIB2-kaart, 16/32 GB); "
-        "een gewone SD-kaart wordt geweigerd (CID-gebonden).",
-        "Kopieer eerst de volledige inhoud van de SD-kaart naar de computer als reserve.",
-        "Wis de inhoud van de SD-kaart (geen reformat; blijf op FAT32, clustergrootte 4096).",
-        "Pak het pakket uit met 7-Zip (Windows) of Keka (macOS) en kopieer de maps/ "
-        "inhoud naar de kaartroot.",
+        "Use the original VAG SD card (or another VAG MIB2 card, 16/32 GB); "
+        "a generic SD card is refused (CID-bound).",
+        "First copy the full contents of the SD card to the computer as a backup.",
+        "Clear the contents of the SD card (no reformat; stay on FAT32, cluster size 4096).",
+        "Extract the package with 7-Zip (Windows) or Keka (macOS) and copy the maps/ "
+        "contents to the card root.",
     ]
     if wa["enabled"]:
         if wa["overall_backup"]:
             steps.append(
-                "Vervang op de kaart maps/EEC/EEC_WLD/OVERALL.NDS door de originele "
-                f"({wa['overall_backup']}). De unit is gekoppeld aan de "
-                "oorspronkelijke maprelease.")
+                "On the card, replace maps/EEC/EEC_WLD/OVERALL.NDS with the original "
+                f"({wa['overall_backup']}). The unit is paired to the "
+                "original map release.")
         else:
             steps.append(
-                "Vervang op de kaart maps/EEC/EEC_WLD/OVERALL.NDS door de originele "
-                "van de auto (zet car.workaround.overall_backup in de config). "
-                "De unit is gekoppeld aan de oorspronkelijke maprelease.")
+                "On the card, replace maps/EEC/EEC_WLD/OVERALL.NDS with the original "
+                "from the car (set car.workaround.overall_backup in the config). "
+                "The unit is paired to the original map release.")
     manual = [
-        "Eject netjes via infotainment (Settings > Safely remove > SD1), steek de kaart "
-        "in SD-slot 1 terwijl de unit uit is, en start de navigatie.",
-        "Stel je POI's (tankstations, parkeerplaatsen e.d.) opnieuw in; die worden "
-        "gewist bij de update.",
+        "Eject cleanly via infotainment (Settings > Safely remove > SD1), insert the "
+        "card into SD slot 1 while the unit is off, and start navigation.",
+        "Re-set your POIs (fuel stations, parking lots etc.); they are "
+        "cleared by the update.",
     ]
     return {"steps": steps + manual, "manual": manual}
 
@@ -259,7 +261,7 @@ class FolderSource:
     def __init__(self, path: str):
         path = os.path.abspath(path)
         if not os.path.isdir(path):
-            raise MapError(f"geen bestaande map: {path}")
+            raise MapError(f"not an existing folder: {path}")
         if os.path.isdir(os.path.join(path, "maps")):
             self.package_root = path
             self.maps_root = os.path.join(path, "maps")
@@ -268,8 +270,8 @@ class FolderSource:
             self.maps_root = path
         else:
             raise MapError(
-                f"{path} lijkt geen MIB2-map: verwacht een map met 'maps/' of "
-                "een maps-boom met '00/' en 'EEC/'")
+                f"{path} does not look like a MIB2 map: expected a folder "
+                "containing 'maps/' or a maps tree with '00/' and 'EEC/'")
         base = os.path.basename(os.path.normpath(path))
         self.name = os.path.basename(self.package_root) if base == "maps" else base
         if not self.name:
@@ -312,7 +314,7 @@ class ZipSource:
     def __init__(self, path: str):
         path = os.path.abspath(path)
         if not os.path.isfile(path) or not zipfile.is_zipfile(path):
-            raise MapError(f"geen geldig zip-bestand: {path}")
+            raise MapError(f"not a valid zip file: {path}")
         self.path = path
         self.name = os.path.splitext(os.path.basename(path))[0]
         self.package_root = os.path.dirname(path)
@@ -339,15 +341,15 @@ class ZipSource:
 
 
 class SevenZipSource:
-    """A `.7z` package; members are read on the fly via the `7z` binary
-    (p7zip). Nothing is extracted to disk, so it is safe to analyse a
-    multi-GB archive without duplicating it in the project."""
+    """A `.7z` package; members are read on the fly via the 7-Zip binary.
+    Nothing is extracted to disk, so it is safe to analyse a multi-GB
+    archive without duplicating it in the project."""
     kind = "7z"
 
     def __init__(self, path: str, binary: str = None):
         path = os.path.abspath(path)
         if not os.path.isfile(path):
-            raise MapError(f"geen bestand: {path}")
+            raise MapError(f"not a file: {path}")
         self.path = path
         self.name = os.path.splitext(os.path.basename(path))[0]
         self.package_root = os.path.dirname(path)
@@ -357,17 +359,17 @@ class SevenZipSource:
 
     def _run(self, args: list, binary: bool = False) -> bytes:
         if not self.binary:
-            raise MapError("7z (p7zip) is niet geïnstalleerd; kan dit "
-                           ".7z-archief niet lezen")
+            raise MapError("7-Zip is not installed; cannot read this "
+                           ".7z archive")
         env = dict(os.environ, LANG="C", LC_ALL="C")
         try:
             proc = subprocess.run(
                 [self.binary] + args, capture_output=True, env=env)
         except OSError as e:
-            raise MapError(f"7z starten mislukt: {e}")
+            raise MapError(f"failed to start 7z: {e}")
         if proc.returncode != 0:
             err = (proc.stderr or proc.stdout).decode("utf-8", "replace").strip()
-            raise MapError(f"7z fout (code {proc.returncode}): {err}")
+            raise MapError(f"7z error (code {proc.returncode}): {err}")
         return proc.stdout if binary else proc.stdout.decode("utf-8", "replace")
 
     def _index(self):
@@ -409,12 +411,8 @@ class SevenZipSource:
 
 
 def _find_7z() -> str:
-    import shutil
-    for cand in ("7z", "7zz", "7za"):
-        p = shutil.which(cand)
-        if p:
-            return p
-    return None
+    """Locate a 7-Zip binary (backwards-compatible alias of osutil.find_7z)."""
+    return osutil.find_7z()
 
 
 def resolve_source(path: str):
@@ -424,7 +422,7 @@ def resolve_source(path: str):
         return ZipSource(path)
     if os.path.isfile(path) and path.lower().endswith(".7z"):
         return SevenZipSource(path)
-    raise MapError(f"pad bestaat niet of is geen map/zip/7z: {path}")
+    raise MapError(f"path does not exist or is not a folder/zip/7z: {path}")
 
 
 def region_dirs(source) -> list:
@@ -445,11 +443,11 @@ def validate(source):
     members = set(source.members())
     for m in ("00/nds/dbinfo.txt", "00/nds/ROOT.NDS", "00/nds/PRODUCT/PRODUCT.NDS"):
         if m not in members:
-            errors.append(f"ontbrekend: {m}")
+            errors.append(f"missing: {m}")
     if "EEC/PRODUCT.NDS" not in members:
-        warnings.append("EEC/PRODUCT.NDS ontbreekt (alleen regionale data)")
+        warnings.append("EEC/PRODUCT.NDS missing (regional data only)")
     if "EEC/EEC_WLD/OVERALL.NDS" not in members:
-        warnings.append("EEC/EEC_WLD/OVERALL.NDS ontbreekt")
+        warnings.append("EEC/EEC_WLD/OVERALL.NDS missing")
     info = {}
     try:
         txt = source.read("00/nds/dbinfo.txt").decode("utf-8", "replace")
@@ -458,10 +456,10 @@ def validate(source):
                 k, _, v = line.partition("=")
                 info[k.strip()] = v.strip().strip('"')
     except Exception as e:
-        errors.append(f"dbinfo.txt niet leesbaar: {e}")
+        errors.append(f"dbinfo.txt not readable: {e}")
     regions = region_dirs(source)
     if not regions:
-        errors.append("geen regio-mappen gevonden onder 00/nds/PRODUCT/E*")
+        errors.append("no region directories found under 00/nds/PRODUCT/E*")
     return {"ok": not errors, "errors": errors, "warnings": warnings,
             "info": info, "regions": regions}
 
@@ -581,12 +579,12 @@ def _covered_iso(source, nds_out: str, regions: list) -> set:
 def compatibility_check(source, wanted: list = None) -> dict:
     """Does this package fit the configured reference car (MIB2 Standard)?
 
-    Verdict = 'geschikt' / 'niet geschikt'.  Checks:
-      serie (bronnaam: STD2/DiscoverMedia2/MST2), regio (SystemName must
-      start with car.region_prefix, default ECE), versie (bekende releases),
-      landdekking vs. gewenste landen, uitpakgrootte vs. de SD-kaart
-      (car.card_size_gb).  Plus de installatiestappen (incl. de optionele
-      OVERALL.NDS-workaround uit car.workaround).
+    Verdict = 'suitable' / 'not suitable'.  Checks:
+      series (source name: STD2/DiscoverMedia2/MST2), region (SystemName
+      must start with car.region_prefix, default ECE), version (known
+      releases), country coverage vs. wanted countries, extracted size vs.
+      the SD card (car.card_size_gb).  Plus the install steps (incl. the
+      optional OVERALL.NDS workaround from car.workaround).
     """
     profile = car_profile()
     val = validate(source)
@@ -602,85 +600,86 @@ def compatibility_check(source, wanted: list = None) -> dict:
 
     if "std2" in lname or "discovermedia2" in lname or "mst2" in lname:
         checks.append({
-            "label": "Nav-serie", "level": "pass", "ok": True,
-            "detail": f"MIB2 Standard (DiscoverMedia2/MST2) via bronnaam "
-                      f"'{name}' - juiste stroom voor deze eenheid (TomTom)."})
+            "label": "Navigation series", "level": "pass", "ok": True,
+            "detail": f"MIB2 Standard (DiscoverMedia2/MST2) via the source "
+                      f"name '{name}' - correct stream for this unit "
+                      "(TomTom)."})
     elif any(k in lname for k in ("mhi2", "discoverpro", "seat plus",
                                   " navi ", "navi pro", "pro_", " high")):
         checks.append({
-            "label": "Nav-serie", "level": "fail", "ok": False,
-            "detail": f"'{name}' lijkt een MIB2 High/Plus/Pro-pakket. Die "
-                      "stroom (Here-cartografie) werkt NIET op de MIB2 "
-                      "Standard-eenheid."})
+            "label": "Navigation series", "level": "fail", "ok": False,
+            "detail": f"'{name}' looks like an MIB2 High/Plus/Pro package. "
+                      "That stream (Here cartography) does NOT work on the "
+                      "MIB2 Standard unit."})
     else:
         checks.append({
-            "label": "Nav-serie", "level": "info", "ok": None,
-            "detail": f"Kan de nav-serie niet uit de bronnaam '{name}' "
-                      "afleiden (verwacht: STD2/DiscoverMedia2/MST2)."})
+            "label": "Navigation series", "level": "info", "ok": None,
+            "detail": f"Cannot infer the navigation series from the source "
+                      f"name '{name}' (expected: STD2/DiscoverMedia2/MST2)."})
 
     prefix = profile["region_prefix"]
     if sys_name.startswith(prefix):
         checks.append({
-            "label": "Regio", "level": "pass", "ok": True,
-            "detail": f"{sys_name} - {prefix} (Europa), juiste markt voor "
-                      "deze eenheid."})
+            "label": "Region", "level": "pass", "ok": True,
+            "detail": f"{sys_name} - {prefix} (Europe), correct market for "
+                      "this unit."})
     elif sys_name:
         checks.append({
-            "label": "Regio", "level": "fail", "ok": False,
-            "detail": f"{sys_name} is geen {prefix}-pakket. Buiten-{prefix} "
-                      "kaarten vereisen een ingreep en zijn niet bedoeld "
-                      "voor deze eenheid."})
+            "label": "Region", "level": "fail", "ok": False,
+            "detail": f"{sys_name} is not a {prefix} package. Non-{prefix} "
+                      "maps require an intervention and are not intended "
+                      "for this unit."})
     else:
         checks.append({
-            "label": "Regio", "level": "fail", "ok": False,
-            "detail": "SystemName ontbreekt in dbinfo.txt."})
+            "label": "Region", "level": "fail", "ok": False,
+            "detail": "SystemName missing in dbinfo.txt."})
 
     cur = _ver_int(version)
     if cur is not None:
         note = KNOWN_RELEASES.get(version)
-        detail = (f"versie {version} ({note})" if note
-                  else f"versie {version} (niet in de referentietabel)")
+        detail = (f"version {version} ({note})" if note
+                  else f"version {version} (not in the reference table)")
         newer = [v for v in sorted(KNOWN_RELEASES, key=_ver_int)
                  if _ver_int(v) > cur]
         if newer:
             checks.append({
-                "label": "Versie", "level": "warn", "ok": False,
-                "detail": detail + "; nieuwere releases beschikbaar: "
+                "label": "Version", "level": "warn", "ok": False,
+                "detail": detail + "; newer releases available: "
                           + ", ".join(newer) + "."})
         else:
             checks.append({
-                "label": "Versie", "level": "pass", "ok": True,
+                "label": "Version", "level": "pass", "ok": True,
                 "detail": detail + "."})
     else:
         checks.append({
-            "label": "Versie", "level": "info", "ok": None,
-            "detail": "geen versienummer in dbinfo.txt."})
+            "label": "Version", "level": "info", "ok": None,
+            "detail": "no version number in dbinfo.txt."})
 
     try:
         covered = _covered_iso(source, nds_out_dir(source), val["regions"])
     except Exception as e:
         covered = set()
         checks.append({
-            "label": "Landdekking", "level": "info", "ok": None,
-            "detail": f"kon de landdekking niet uitlezen ({e})."})
+            "label": "Country coverage", "level": "info", "ok": None,
+            "detail": f"could not read the country coverage ({e})."})
     missing = [c for c in wanted if c not in covered]
     if not wanted:
         checks.append({
-            "label": "Landdekking", "level": "info", "ok": None,
-            "detail": "geen gewenste landen ingesteld (car.wanted_countries "
-                      "in de config); er is alleen de feitelijke dekking "
-                      "hierboven weergegeven."})
+            "label": "Country coverage", "level": "info", "ok": None,
+            "detail": "no wanted countries configured (car.wanted_countries "
+                      "in the config); only the actual coverage is shown "
+                      "above."})
     elif not missing:
         checks.append({
-            "label": "Landdekking", "level": "pass", "ok": True,
-            "detail": "Alle gewenste landen gedekt: "
+            "label": "Country coverage", "level": "pass", "ok": True,
+            "detail": "All wanted countries covered: "
                       + ", ".join(f"{c} ({country_name(c)})" for c in wanted) + "."})
     else:
         checks.append({
-            "label": "Landdekking", "level": "warn", "ok": False,
-            "detail": "Ontbreekt op deze kaart: "
+            "label": "Country coverage", "level": "warn", "ok": False,
+            "detail": "Missing on this map: "
                       + ", ".join(f"{c} ({country_name(c)})" for c in missing)
-                      + ". Gedekt: "
+                      + ". Covered: "
                       + ", ".join(sorted(f"{c} ({country_name(c)})"
                                          for c in wanted if c in covered)) + "."})
 
@@ -689,23 +688,23 @@ def compatibility_check(source, wanted: list = None) -> dict:
     card_gb = profile["card_size_gb"]
     if size_gb > card_gb - 1.0:
         checks.append({
-            "label": "Grootte SD-kaart", "level": "warn", "ok": False,
-            "detail": f"{size_gb:.1f} GB uitgepakt past NIET op de "
-                      f"{card_gb} GB-kaart; gebruik een 32 GB VAG-kaart."})
+            "label": "SD card size", "level": "warn", "ok": False,
+            "detail": f"{size_gb:.1f} GB extracted does NOT fit on the "
+                      f"{card_gb} GB card; use a 32 GB VAG card."})
     else:
         checks.append({
-            "label": "Grootte SD-kaart", "level": "pass", "ok": True,
-            "detail": f"{size_gb:.1f} GB uitgepakt - past op de "
-                      f"{card_gb} GB-kaart."})
+            "label": "SD card size", "level": "pass", "ok": True,
+            "detail": f"{size_gb:.1f} GB extracted - fits on the "
+                      f"{card_gb} GB card."})
 
     fails = [c for c in checks if c["level"] == "fail"]
     warns = [c for c in checks if c["level"] == "warn"]
     if fails:
-        verdict, verdict_ok = "niet geschikt", False
+        verdict, verdict_ok = "not suitable", False
     elif warns:
-        verdict, verdict_ok = "geschikt (met kanttekeningen)", True
+        verdict, verdict_ok = "suitable (with caveats)", True
     else:
-        verdict, verdict_ok = "geschikt", True
+        verdict, verdict_ok = "suitable", True
 
     overall_path = overall_backup_path(profile)
     overall_display = profile["workaround"]["overall_backup"]
@@ -715,9 +714,8 @@ def compatibility_check(source, wanted: list = None) -> dict:
     if profile["workaround"]["enabled"] and not overall_present:
         for i, s in enumerate(steps):
             if "OVERALL.NDS" in s:
-                steps[i] = (s + " WAARSCHUWING: het OVERALL.NDS-backupbestand "
-                            "is niet gevonden; zoek het eerst voordat je "
-                            "update.")
+                steps[i] = (s + " WARNING: the OVERALL.NDS backup file "
+                            "was not found; find it first before updating.")
                 break
     install = {
         "steps": steps,
@@ -825,7 +823,7 @@ class Map:
         self.regions = read_countries(nds_out, region_dirs(source))
         db_path = os.path.join(nds_out, "PRODUCT", "PRODUCT.sqlite")
         if not os.path.exists(db_path):
-            raise MapError("PRODUCT.sqlite ontbreekt; draai eerst de conversie")
+            raise MapError("PRODUCT.sqlite missing; run the conversion first")
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         conf_path = os.path.join(meta_dir(source), "mapconf.json")
@@ -913,7 +911,7 @@ def render_coverage(m: Map, out_path: str, dpi: int = 130,
         lons.append(lon)
         lats.append(lat)
     if not lats:
-        raise MapError("geen coördinaatpunten in de naamindex")
+        raise MapError("no coordinate points in the name index")
     lon_min, lon_max = min(lons), max(lons)
     lat_min, lat_max = min(lats), max(lats)
     pad_lon = max(0.5, (lon_max - lon_min) * 0.02)
@@ -962,8 +960,8 @@ def render_coverage(m: Map, out_path: str, dpi: int = 130,
                       [f"{t}E" if t >= 0 else f"{-t}W" for t in lon_ticks])
     ax.set_xlabel("longitude")
     ax.set_ylabel("latitude")
-    title = f"{m.info.get('SystemName', 'MIB2')} v{m.info.get('ApplicationSoftwareVersionNumber', '?')} - dekking"
-    ax.set_title(f"{title}\n{m.name} ({len(rows)} plaatsnamen in de index)")
+    title = f"{m.info.get('SystemName', 'MIB2')} v{m.info.get('ApplicationSoftwareVersionNumber', '?')} - coverage"
+    ax.set_title(f"{title}\n{m.name} ({len(rows)} place names in the index)")
     handles = [
         plt.Line2D([], [], marker="s", ls="", color=colors[rid], label=stats[rid]["label"])
         for rid in rid_order
@@ -1056,10 +1054,10 @@ def cleanup_candidates() -> list:
             if os.path.abspath(p).startswith(backup_abs):
                 continue
             if os.path.isdir(os.path.join(p, "maps")):
-                add(p, "extracted", f"{e}/ (uitgepakt pakket)")
+                add(p, "extracted", f"{e}/ (extracted package)")
             elif os.path.isdir(os.path.join(p, "00")) \
                     and os.path.isdir(os.path.join(p, "EEC")):
-                add(p, "extracted", f"{e}/ (maps-boom)")
+                add(p, "extracted", f"{e}/ (maps tree)")
     items.sort(key=lambda it: (-it["size"], it["path"]))
     return items
 
@@ -1074,7 +1072,7 @@ def cleanup_delete(paths) -> dict:
     for p in (paths or []):
         p = os.path.abspath(str(p))
         if p not in allowed:
-            errors.append(f"niet toegestaan: {p}")
+            errors.append(f"not allowed: {p}")
             continue
         try:
             size = _dir_size(p) if os.path.isdir(p) else os.path.getsize(p)

@@ -20,14 +20,15 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/mapui.py --port 5001
 Pick a map package (an extracted folder with `maps/`, or a `.zip`/`.7z`) and
 the UI will:
 
-1. **Compatibility check** right after selection: verdict (geschikt / niet
-   geschikt) with per-check pass/warning/fail — nav series (MIB2 Standard via
-   the `STD2`/`DiscoverMedia2` name), region (`SystemName` in `dbinfo.txt`
-   vs. the configured `region_prefix`, default `ECE`), version (known
-   releases; warns when a newer one exists), country coverage vs. the wanted
-   countries (editable, default from `car.wanted_countries`), and unpacked
-   size vs. the configured SD-card size. Plus the full install checklist
-   (including the optional `OVERALL.NDS` workaround from `car.workaround`).
+1. **Compatibility check** right after selection: verdict (suitable / not
+   suitable / suitable with caveats) with per-check pass/warning/fail — nav
+   series (MIB2 Standard via the `STD2`/`DiscoverMedia2` name), region
+   (`SystemName` in `dbinfo.txt` vs. the configured `region_prefix`, default
+   `ECE`), version (known releases; warns when a newer one exists), country
+   coverage vs. the wanted countries (editable, default from
+   `car.wanted_countries`), and unpacked size vs. the configured SD-card
+   size. Plus the full install checklist (including the optional
+   `OVERALL.NDS` workaround from `car.workaround`).
 2. **Validates** the package directly (without converting anything large)
    and shows version/system/part number from `dbinfo.txt`.
 3. **Shows country coverage per region** — only the small `OVERALL.NDS`
@@ -50,7 +51,7 @@ available next time.
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> countries
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search Nijmegen
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search "Den Haag" --contains
-mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/kaart.png
+mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/map.png
 
 # compatibility check (default wanted countries from config, or --wanted)
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
@@ -89,8 +90,15 @@ also holds the config layer and the car-profile/install-plan logic.
 - Venv `mib2nds-tool/.venv` (from `requirements.txt`): `cryptography`,
   `matplotlib`, `flask`.
 - `query.py coverage` needs the Natural Earth 50m countries GeoJSON at
-  `dirs.ne_geojson` (config) or `/tmp/ne_50m.geojson`. Without it the map
-  renders without country borders and region labels fall back to numeric.
+  `dirs.ne_geojson` (config), the `NE_COUNTRIES` env var, or a file named
+  `ne_50m.geojson` in the system temp dir. `install.py --ne` downloads it.
+  Without it the map renders without country borders and region labels fall
+  back to numeric.
+- `osutil.py` is the OS-portability layer (command runner with progress
+  parsers, tree copy/verify, SD-mount detection, 7-Zip lookup); it keeps the
+  tool working on Windows and Linux.
+- `stop_mapui.py` (and `stop-mapui.sh`/`stop-mapui.bat`) stops the UI server
+  on 127.0.0.1:5000 via `POST /api/shutdown`.
 - For a `.zip`/`.7z`, nothing is extracted into the project folder; the
   needed members are read directly from the archive (single conversion
   outputs land in `_work/`).

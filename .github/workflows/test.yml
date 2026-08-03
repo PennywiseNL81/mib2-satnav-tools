@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile all sources
+        run: |
+          python -m py_compile \
+            mib2nds-tool/mapui.py mib2nds-tool/mapdata.py \
+            mib2nds-tool/osutil.py mib2nds-tool/query.py \
+            mib2nds-tool/updates.py mib2nds-tool/nds2sqlite.py \
+            mib2nds-tool/ndsgeo.py mib2nds-tool/stop_mapui.py \
+            sd-updater/update_sd.py install.py
+
+      - name: Smoke test - no MIB2 SD card present
+        run: |
+          out=$(python sd-updater/update_sd.py detect)
+          echo "$out"
+          grep -q "no MIB2 SD card found" <<< "$out"
+
+      - name: Smoke test - compatibility check on the fixture
+        run: |
+          python mib2nds-tool/query.py --map tests/fixtures/mini_map compat
+
+      - name: Smoke test - SD updater dry-run on the fixture
+        env:
+          MIB2_CONFIG: "${{ runner.temp }}/ci_config.json"
+        run: |
+          mkdir -p BACKUP
+          printf '{"dirs":{"work":"_work","downloads":"downloads","backup":"BACKUP"}}\n' \
+            > "$MIB2_CONFIG"
+          python sd-updater/update_sd.py install \
+            --source tests/fixtures/mini_map \
+            --sd tests/fixtures/mini_map \
+            --dry-run --yes
+
+      - name: Smoke test - web UI start + shutdown
+        run: |
+          python mib2nds-tool/mapui.py --no-browser &
+          pid=$!
+          sleep 4
+          curl -fsS http://127.0.0.1:5000/api/maps >/dev/null
+          curl -fsS -X POST http://127.0.0.1:5000/api/shutdown \
+            -H 'Content-Type: application/json' -d '{}' >/dev/null
+          wait $pid || true

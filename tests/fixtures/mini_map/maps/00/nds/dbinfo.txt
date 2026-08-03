@@ -1,0 +1,7 @@
+SystemName="ECE DL2 2027"
+ApplicationSoftwareVersionNumber="2710"
+PartNumber1="V03959828AP"
+PartNumber2="V03959828AP"
+PartNumber3="V03959828AP"
+PartNumber4="V03959828AP"
+ApplicationSoftwareVersionNumberText="2710"

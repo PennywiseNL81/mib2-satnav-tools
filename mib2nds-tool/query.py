@@ -45,7 +45,7 @@ def _map_from_args(args):
     source = mapdata.resolve_source(args.map)
     val = mapdata.validate(source)
     if not val["ok"]:
-        print("ongeldige map:", "; ".join(val["errors"]), file=sys.stderr)
+        print("invalid map:", "; ".join(val["errors"]), file=sys.stderr)
         sys.exit(2)
     nds_out = mapdata.nds_out_dir(source)
     mapdata.ensure_countries(source, nds_out)
@@ -60,7 +60,7 @@ def cmd_search(args):
         name = " ".join(args.name)
         res = mapdata.search(m, name,
                              mode="contains" if args.contains else "exact")
-        print(f"'{name}': {res['total']} unieke object(en)")
+        print(f"'{name}': {res['total']} unique object(s)")
         for it in res["results"]:
             zip_s = f"  zip={it['postalCode']}" if it["postalCode"] else ""
             print(f"  {it['name']}  ({it['lat']:.4f}, {it['lon']:.4f})"
@@ -103,7 +103,7 @@ def cmd_countries(args):
         source = mapdata.resolve_source(args.map)
         val = mapdata.validate(source)
         if not val["ok"]:
-            print("ongeldige map:", "; ".join(val["errors"]), file=sys.stderr)
+            print("invalid map:", "; ".join(val["errors"]), file=sys.stderr)
             return 2
         nds_out = mapdata.nds_out_dir(source)
         mapdata.ensure_countries(source, nds_out)
@@ -113,9 +113,9 @@ def cmd_countries(args):
               f"v{info.get('ApplicationSoftwareVersionNumber', '?')}")
         for r in regions:
             names = ", ".join(f"{c} ({mapdata.country_name(c)})" for c in r["countries"])
-            print(f"  {r['dir']}: {names or '(geen landcodes)'}")
+            print(f"  {r['dir']}: {names or '(no country codes)'}")
         all_codes = sorted({c for r in regions for c in r["countries"]})
-        print(f"\n  Totaal gedekt ({len(all_codes)}): " + ", ".join(all_codes))
+        print(f"\n  Total covered ({len(all_codes)}): " + ", ".join(all_codes))
         return 0
     for rid in sorted(ndsgeo.REGION_INFO):
         info = ndsgeo.REGION_INFO[rid]
@@ -233,31 +233,32 @@ def cmd_coverage(args):
 
 def cmd_compat(args):
     if not args.map:
-        print("compat vereist --map <folder|zip>", file=sys.stderr)
+        print("compat requires --map <folder|zip>", file=sys.stderr)
         return 2
     source = mapdata.resolve_source(args.map)
     val = mapdata.validate(source)
     if not val["ok"]:
-        print("ongeldige map:", "; ".join(val["errors"]), file=sys.stderr)
+        print("invalid map:", "; ".join(val["errors"]), file=sys.stderr)
         return 2
     wanted = None
     if args.wanted:
         wanted = [w.strip().upper() for w in args.wanted.split(",") if w.strip()]
     compat = mapdata.compatibility_check(source, wanted)
     print(f"{source.name}: {compat['verdict']}")
-    print(f"  auto: {compat['car']['make']} · {compat['car']['nav_series']} "
+    print(f"  car: {compat['car']['make']} · {compat['car']['nav_series']} "
           f"(part {compat['car']['part_number']})")
     for ch in compat["checks"]:
         mark = {True: "ok", False: "!!", None: "--"}[ch["ok"]]
         print(f"  [{mark}] {ch['label']}: {ch['detail']}")
-    print(f"  grootte: {compat['size']['gb']:.1f} GB uitgepakt")
+    print(f"  size: {compat['size']['gb']:.1f} GB extracted")
     if compat["missing"]:
-        print("  ontbrekende gewenste landen: " + ", ".join(compat["missing"]))
-    print("  installatie:")
+        print("  missing wanted countries: " + ", ".join(compat["missing"]))
+    print("  installation:")
     for i, s in enumerate(compat["install"]["steps"], 1):
         print(f"    {i}. {s}")
-    if not compat["install"]["overall_backup_present"]:
-        print(f"  WAARSCHUWING: OVERALL.NDS-back-up ontbreekt: "
+    if (compat["install"]["workaround_enabled"]
+            and not compat["install"]["overall_backup_present"]):
+        print(f"  WARNING: OVERALL.NDS backup missing: "
               f"{compat['install']['overall_backup']}")
     return 0 if compat["verdict_ok"] else 3
 

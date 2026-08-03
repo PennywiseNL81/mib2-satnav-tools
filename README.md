@@ -45,10 +45,28 @@ Volkswagen, SEAT, Škoda or Audi.
 - Python 3.10+
 - `cryptography`, `matplotlib`, `flask` (see `requirements.txt`)
 - the `7z` binary on `PATH` for `.7z` packages (folders and `.zip` work
-  without it)
+  without it; the tool auto-detects `7z`/`7zz`/`7za` and the standard
+  Windows 7-Zip install locations)
 - optional: Natural Earth 50m countries GeoJSON for the coverage map borders
+- works on Linux, macOS and Windows (no Unix-only dependencies; `rsync` is
+  used when available for fast tree copy/verify and falls back to a
+  pure-Python copy otherwise)
 
 ## Quick start
+
+### One command
+
+```bash
+# in an existing checkout (creates the venv, installs requirements,
+# reports on 7-Zip; add --ne to also fetch the Natural Earth borders)
+./setup.sh              # Windows: setup.bat
+
+# standalone bootstrap (repo archive is pulled via MIB2_REPO_URL)
+MIB2_REPO_URL=https://github.com/<user>/mib2-satnav-tools \
+  python <(curl -fsSL https://raw.githubusercontent.com/<user>/mib2-satnav-tools/main/install.py)
+```
+
+### Or manually
 
 ```bash
 git clone <this-repo> && cd mib2-satnav-tools
@@ -59,11 +77,14 @@ mib2nds-tool/.venv/bin/pip install -r requirements.txt
 cp config.example.json config.json
 
 # web UI -> http://127.0.0.1:5000
-./start-mapui.sh
+./start-mapui.sh        # Windows: start-mapui.bat
 
 # CLI: compatibility check of a package
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map DiscoverMedia2_EU-DL2_2710_V24.7z compat
 ```
+
+On Windows the venv interpreter is `mib2nds-tool\.venv\Scripts\python.exe`
+(the `.sh` launchers have `.bat` equivalents).
 
 ## CLI
 
@@ -80,7 +101,7 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search "Den Haag" --contains
 
 # render a coverage map
-mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/kaart.png
+mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/map.png
 
 # SD-card updater
 mib2nds-tool/.venv/bin/python sd-updater/update_sd.py detect
@@ -103,7 +124,7 @@ It is **not** committed — copy `config.example.json` and fill in your car.
     "work": "_work",
     "downloads": "downloads",
     "backup": "BACKUP",
-    "ne_geojson": "/tmp/ne_50m.geojson"
+    "ne_geojson": "ne_50m.geojson"
   },
   "car": {
     "make": "SEAT",
@@ -113,7 +134,7 @@ It is **not** committed — copy `config.example.json` and fill in your car.
     "region_prefix": "ECE",
     "original_release": "0635 (ECE1 2016/17)",
     "card_size_gb": 16,
-    "sd_card": "VAG MIB2-SD-kaart (CID-gebonden)",
+    "sd_card": "VAG MIB2 SD card (CID-bound)",
     "wanted_countries": ["NL", "DE", "BE", "LU", "GB", "IE", "FR", "AT", "CH"],
     "workaround": {
       "enabled": true,
@@ -144,6 +165,23 @@ The `.NDS` files are SQLite databases wrapped in the ZipVFS container
 format, optionally AES-128-ECB-encrypted on the first 64 bytes of each zlib
 payload. `ndsgeo.py` decodes the NDS morton code in the name index
 (`nameFtsTable`) to lat/lon. See `ANALYSE.md` and `mib2nds-tool/README.md`.
+
+## Testing
+
+`tests/fixtures/mini_map/` is a tiny fake maps tree (no real NDS binaries)
+used as a stand-in for a real package / SD card. The CI workflow
+(`.github/workflows/test.yml`, Linux + Windows) compiles every module and
+smoke-tests the CLI: the "no SD card" path of `update_sd.py detect`, the
+compatibility check and the SD updater dry-run on the fixture, and a web-UI
+start + shutdown round trip.
+
+```bash
+# locally: compile + fixture checks (deps must be installed first)
+python -m py_compile mib2nds-tool/*.py sd-updater/update_sd.py install.py
+python mib2nds-tool/query.py --map tests/fixtures/mini_map compat
+MIB2_CONFIG=/tmp/ci_config.json python sd-updater/update_sd.py install \
+  --source tests/fixtures/mini_map --sd tests/fixtures/mini_map --dry-run --yes
+```
 
 ## Disclaimer
 

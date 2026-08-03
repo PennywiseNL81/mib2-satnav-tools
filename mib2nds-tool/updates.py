@@ -156,7 +156,7 @@ def download(url: str, progress=None, log=None) -> str:
     req = urllib.request.Request(url, headers=headers)
     with _urlopen(req, timeout=30) as r:
         if log:
-            log(f"download gestart: {fname} (resume vanaf {existing} bytes)")
+            log(f"download started: {fname} (resuming from {existing} bytes)")
         total = existing
         if r.status == 206:
             cr = r.headers.get("Content-Range", "")
@@ -182,7 +182,7 @@ def download(url: str, progress=None, log=None) -> str:
                     progress(done, total)
     os.replace(part, final)
     if log:
-        log(f"download klaar: {fname} ({total} bytes)")
+        log(f"download finished: {fname} ({total} bytes)")
     return final
 
 
@@ -273,8 +273,8 @@ def discover_new(add: bool = False, progress=None) -> dict:
                 "url": f["url"],
                 "size_gb": round(f["size"] / 1e9, 2) if f["size"] else None,
                 "countries": [],
-                "note": "Automatisch gevonden op de officiële VW-server; "
-                        "landdekking bevestigen na selectie",
+                "note": "Automatically found on the official VW server; "
+                        "confirm country coverage after selection",
                 "recommended": False,
             })
         save_registry(data)
