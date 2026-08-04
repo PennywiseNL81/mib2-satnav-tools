@@ -292,3 +292,18 @@ MIB2_CONFIG=/tmp/ci_config.json python sd-updater/update_sd.py install \
 >   breaks, it is on you. The analysis, validation and coverage features are
 >   read-only and safe; think twice (and read the forum thread) before using
 >   the SD-card updater.
+
+## License
+
+`mib2-satnav-tools` is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version. See `LICENSE`.
+
+Copyright (C) 2026 \<Your Name\>
+
+**Legitimate use only.** This tool works only with map data you legitimately
+hold — the SD card from your own VAG unit, or the official updates VW
+publishes. It bundles **no map data**. You may analyse, back up, and update
+maps for a unit you own. Map content remains the property of the VW Group
+and its suppliers; do not redistribute or resell it.
