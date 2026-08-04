@@ -65,7 +65,7 @@ def pull_repo(url: str, dest_dir: str) -> None:
         sys.exit(
             "This standalone install.py needs the repository location; "
             "set MIB2_REPO_URL (e.g. "
-            "https://github.com/<user>/mib2-satnav-tools).")
+            "https://github.com/pennywiseNL81/mib2-satnav-tools).")
     log(f"downloading repo from {url}")
     with urllib.request.urlopen(url, timeout=60) as resp:
         data = resp.read()

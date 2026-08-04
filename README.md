@@ -12,6 +12,9 @@ This project grew out of updating a 2016 MIB2 Standard car (original map
 `0635`) to the current `2710` / ECE 2027 release. It is not affiliated with
 Volkswagen, SEAT, Škoda or Audi.
 
+This project was created with [opencode](https://opencode.ai), an open-source
+AI coding assistant.
+
 > ## ⚠️ USE AT YOUR OWN RISK
 >
 > This tool **modifies the contents of your satnav SD card**. A wrong region,
@@ -91,14 +94,14 @@ Volkswagen, SEAT, Škoda or Audi.
 ./setup.sh              # Windows: setup.bat
 
 # standalone bootstrap (repo archive is pulled via MIB2_REPO_URL)
-MIB2_REPO_URL=https://github.com/<user>/mib2-satnav-tools \
-  python <(curl -fsSL https://raw.githubusercontent.com/<user>/mib2-satnav-tools/main/install.py)
+MIB2_REPO_URL=https://github.com/pennywiseNL81/mib2-satnav-tools \
+  python <(curl -fsSL https://raw.githubusercontent.com/pennywiseNL81/mib2-satnav-tools/main/install.py)
 ```
 
 ### Or manually
 
 ```bash
-git clone <this-repo> && cd mib2-satnav-tools
+git clone https://github.com/pennywiseNL81/mib2-satnav-tools.git && cd mib2-satnav-tools
 python3 -m venv mib2nds-tool/.venv
 mib2nds-tool/.venv/bin/pip install -r requirements.txt
 
@@ -300,7 +303,7 @@ it under the terms of the GNU General Public License as published by the
 Free Software Foundation, either version 3 of the License, or (at your
 option) any later version. See `LICENSE`.
 
-Copyright (C) 2026 \<Your Name\>
+Copyright (C) 2026 pennywiseNL81
 
 **Legitimate use only.** This tool works only with map data you legitimately
 hold — the SD card from your own VAG unit, or the official updates VW
