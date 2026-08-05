@@ -116,9 +116,6 @@ borders). They differ in **how the source code arrives**:
   python3 install.py ~/mib2-tools   # into a specific folder
   ```
 
-  (`MIB2_REPO_URL=https://github.com/<owner>/<repo>` before `python3` makes
-  the installer pull from a fork.)
-
 ### Or manually
 
 ```bash
@@ -126,8 +123,9 @@ git clone https://github.com/pennywiseNL81/mib2-satnav-tools.git && cd mib2-satn
 python3 -m venv mib2nds-tool/.venv
 mib2nds-tool/.venv/bin/pip install -r requirements.txt
 
-# (optional) copy the example config and edit it to your car:
-cp config.example.json config.json
+# (your car profile / config.json is created in "First run" below —
+#  no need to copy the example by hand; copy it only if you prefer
+#  hand-editing:  cp config.example.json config.json)
 
 # web UI -> http://127.0.0.1:5000
 ./start-mapui.sh        # Windows: start-mapui.bat
