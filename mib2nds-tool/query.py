@@ -294,6 +294,9 @@ def main():
     p.set_defaults(func=cmd_compat)
 
     args = ap.parse_args()
+    notice = mapdata.first_run_notice()
+    if notice:
+        print(f"note: {notice}", file=sys.stderr)
     sys.exit(args.func(args) or 0)
 
 

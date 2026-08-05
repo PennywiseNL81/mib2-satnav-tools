@@ -397,8 +397,7 @@ def api_profile():
     return jsonify({
         "ok": True,
         "configured": bool(mapdata.config_source()),
-        "profile_set": bool(car["part_number"] or car["wanted_countries"]
-                            or car["original_release"]),
+        "profile_set": mapdata.profile_set(),
         "config_source": mapdata.config_source(),
         "car": car,
         "overall_backup": overall,

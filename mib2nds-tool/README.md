@@ -54,9 +54,10 @@ available next time.
 ## Car profile (first run — no config editing)
 
 Step 1 of the UI ("Car profile") auto-detects your car from the SD card or a
-backup folder and writes `config.json` for you: detect (SD card, a detected
-folder, or a folder picked with the built-in browser), review the form
-(per-field `?` tooltips explain what is detected vs. manually filled),
+backup folder and writes your personal `config.local.json` for you (the
+committed `config.json` template stays untouched): detect (SD card, a
+detected folder, or a folder picked with the built-in browser), review the
+form (per-field `?` tooltips explain what is detected vs. manually filled),
 save. The CLI equivalent is `update_sd.py profile [--from <folder>]`.
 Detection reads only `dbinfo.txt` + the tiny per-region `OVERALL.NDS` files
 and never writes to the source. Guardrails: sources without a `maps/` tree

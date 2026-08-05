@@ -52,21 +52,31 @@ mib2-satnav-tools/
 
 ## Configuration
 
-Everything user-specific lives in a `config.json` that is **not** committed:
+The repo ships a committed `config.json` **defaults template** (generic, no
+personal data). Personal data lives in a gitignored `config.local.json`,
+created by the first-run car-profile setup. Resolution order (first hit
+wins):
 
-- `MIB2_CONFIG` env var, or `config.json` next to the repo (i.e. one level up),
-  or `config.json` inside the repo root — first hit wins.
+1. `MIB2_CONFIG` env var → explicit personal-config path.
+2. `<repo>/config.local.json` → personal config (created by `profile` / UI
+   step 1).
+3. `<repo>/config.json` → the committed defaults template.
 
 See `config.example.json` for the full schema. Important keys:
 
 - `dirs.work` / `dirs.downloads` / `dirs.backup` — output/cache and package
-  locations. Relative entries are anchored to the workspace root (the repo's
-  parent when writable, else the repo root), keeping them out of the git repo.
+  locations. Relative entries are anchored to the folder holding the active
+  `MIB2_CONFIG` file when set, else the repo root, keeping them out of the
+  git repo.
 - `car.*` — the reference-car profile used by the compatibility check:
   `make`, `nav_series`, `cartography`, `part_number`, `region_prefix`
   (default `ECE`), `original_release`, `card_size_gb` (default 16),
   `sd_card`, `wanted_countries` (2- or 3-letter ISO codes; the tool
   normalises them), and `workaround.{enabled,overall_backup}`.
+
+`save_profile()` never writes to the committed `config.json` template — it
+only ever writes `config.local.json` or the `MIB2_CONFIG` target, so
+personal data cannot leak into the repo.
 
 The `workaround` step is the known "pair the unit to the original map
 release" fix: after copying new `maps/`, replace
@@ -84,16 +94,16 @@ Windows the interpreter is `mib2nds-tool\.venv\Scripts\python.exe`:
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> countries
 mib2nds-tool/.venv/bin/python sd-updater/update_sd.py detect|list|install
-mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile   # auto-create config.json from the SD card
+mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile   # auto-create config.local.json from the SD card
 mib2nds-tool/.venv/bin/python mib2nds-tool/mapui.py        # -> http://127.0.0.1:5000
 ```
 
-The car profile can be auto-created instead of hand-editing `config.json`:
+The car profile can be auto-created instead of hand-editing config files:
 `update_sd.py profile` reads the SD card (or `--from <backup-folder>`),
 derives the part number, region, original release, card size, covered
 countries and the `OVERALL.NDS` workaround (enabled for pre-2019 releases)
-and writes `config.json` (target: `MIB2_CONFIG` if set, else next to the
-repo). The web UI (step 1, "Car profile") exposes the same flow with a
+and writes `config.local.json` (target: `MIB2_CONFIG` if set, else the repo
+root). The web UI (step 1, "Car profile") exposes the same flow with a
 form: detect, edit, save. `mapdata.derive_profile()` / `save_profile()`
 are the shared implementation and write nothing on their own.
 

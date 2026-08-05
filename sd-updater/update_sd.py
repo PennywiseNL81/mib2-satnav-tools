@@ -560,6 +560,10 @@ def main(argv=None) -> int:
     if not args.cmd:
         ap.print_help()
         return 0
+    if args.cmd != "profile":
+        notice = mapdata.first_run_notice()
+        if notice:
+            print(f"note: {notice}")
     if args.cmd == "detect":
         return cmd_detect(args)
     if args.cmd == "list":

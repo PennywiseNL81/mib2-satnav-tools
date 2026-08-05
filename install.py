@@ -206,10 +206,10 @@ def main(argv=None) -> int:
     if args.ne:
         download_ne(args.ne_out or os.path.join(root, "ne_50m.geojson"))
 
-    cfg = os.path.join(root, "config.json")
-    if not os.path.isfile(cfg):
-        log("Tip: copy config.example.json to config.json and set your car "
-            "profile (see README.md).")
+    log("First run: set up your car profile before checking maps - insert "
+        "the SD card and run")
+    log("  mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile")
+    log("  (or use the web UI, step 1 'Car profile'). See README.md.")
 
     log("")
     log("Done. Start the web UI with:")

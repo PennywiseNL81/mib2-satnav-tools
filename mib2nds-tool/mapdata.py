@@ -36,13 +36,20 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ---------------------------------------------------------------------------
 # User configuration (kept out of the repo on purpose).
 #
-# Resolution order for config.json:
-#   1. env MIB2_CONFIG          -> explicit path (recommended for a personal
-#                                  config that lives outside the repo),
-#   2. <repo>/../config.json    -> "workspace root" pattern (personal data
-#                                  folders stay next to the repo),
-#   3. <repo>/config.json       -> in-repo config (generic users),
-#   4. built-in defaults.
+# Resolution order:
+#   1. env MIB2_CONFIG          -> explicit personal-config path; relative
+#                                  dirs.* entries are then anchored to the
+#                                  folder containing that file (recommended
+#                                  for a personal config outside the repo),
+#   2. <repo>/config.local.json -> personal config created by the first-run
+#                                  setup (gitignored; never committed),
+#   3. <repo>/config.json       -> committed defaults template (generic; no
+#                                  personal data). A fresh install triggers
+#                                  the first-run car-profile setup instead of
+#                                  running with these defaults.
+#
+# Personal data folders (dirs.work / downloads / backup / ne_geojson) anchor
+# to the MIB2_CONFIG folder when set, else to the repo root.
 #
 # Keys (all optional):
 #   dirs.work, dirs.downloads, dirs.backup, dirs.ne_geojson
@@ -56,7 +63,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _load_config():
     for cand in (
             os.environ.get("MIB2_CONFIG"),
-            os.path.join(os.path.dirname(PROJECT_ROOT), "config.json"),
+            os.path.join(PROJECT_ROOT, "config.local.json"),
             os.path.join(PROJECT_ROOT, "config.json")):
         if cand and os.path.isfile(cand):
             try:
@@ -83,18 +90,18 @@ def config_source() -> str:
 
 
 def _workspace_root() -> str:
-    """Where personal data folders live by default: the repo's parent when
-    writable (workspace-root pattern), else the repo root."""
-    parent = os.path.dirname(PROJECT_ROOT)
-    if os.access(parent or ".", os.W_OK):
-        return parent
+    """Where personal data folders live by default: the folder containing the
+    active MIB2_CONFIG file when set, else the repo root."""
+    env = os.environ.get("MIB2_CONFIG")
+    if env:
+        return os.path.dirname(os.path.abspath(env))
     return PROJECT_ROOT
 
 
 def _dir_key(key: str, default: str) -> str:
     """Resolve a dirs.* key to an absolute path.  Relative entries are
-    anchored to the workspace root (the repo's parent when writable, else
-    the repo root) - the same place config.json lives by default."""
+    anchored to the workspace root (the MIB2_CONFIG folder when set, else the
+    repo root) - the same place the personal config lives by default."""
     val = config().get("dirs", {}).get(key) or default
     if not os.path.isabs(val):
         val = os.path.join(_workspace_root(), val)
@@ -186,6 +193,28 @@ def car_profile() -> dict:
     }
 
 
+def profile_set(profile: dict = None) -> bool:
+    """Whether the effective car profile has any personal info yet.
+
+    Based on the two car-identifying fields (part number, original release)
+    that the first-run setup derives from the SD card. False on a fresh
+    install - the committed config.json template ships with those empty - so
+    the first-run car-profile setup triggers in the UI and CLI.
+    """
+    p = profile or car_profile()
+    return bool(p.get("part_number") or p.get("original_release"))
+
+
+def first_run_notice() -> str:
+    """Hint shown by CLI commands when no car profile is configured yet."""
+    if profile_set():
+        return ""
+    return ("no car profile configured yet - run "
+            "'mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile' "
+            "(SD card inserted, or --from <backup-folder>) or use the web UI "
+            "step 1 'Car profile' to set one up")
+
+
 def overall_backup_path(profile: dict = None) -> str:
     """Absolute path of the configured original OVERALL.NDS, or ''.
 
@@ -265,16 +294,15 @@ def reload_config():
 
 
 def resolve_config_path() -> str:
-    """Where a newly created config is written.
+    """Where a newly created personal config is written.
 
-    Follows the same order as _load_config() minus the "first hit wins" rule:
-    MIB2_CONFIG, else the workspace root (the repo's parent when writable,
-    else the repo root).
+    MIB2_CONFIG when set, else <repo>/config.local.json. Never the committed
+    config.json template - that file stays personal-data-free in the repo.
     """
     env = os.environ.get("MIB2_CONFIG")
     if env:
         return env
-    return os.path.join(_workspace_root(), "config.json")
+    return os.path.join(PROJECT_ROOT, "config.local.json")
 
 
 def _find_maps_root(path: str) -> str:

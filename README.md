@@ -67,7 +67,7 @@ AI coding assistant.
   backup, extract, copy, optional `OVERALL.NDS` workaround, checksum verify,
   backup rotation.
 - **One-click car-profile setup** (web UI step 1, or `update_sd.py profile`):
-  no hand-editing of `config.json` — insert your SD card (or point at a
+  no hand-editing of config files — insert your SD card (or point at a
   backup of it) and the part number, region, original map release, card size,
   covered countries and the `OVERALL.NDS` workaround are detected and filled
   in automatically.
@@ -177,12 +177,18 @@ read, never modified.
 
 ## Configuration
 
-`config.json` holds your car profile and folder locations. It is **not**
-committed (a fresh install has none) — the [First run](#first-run-set-up-your-car-profile-no-config-editing)
-flow creates it automatically, so you normally never touch it. It lives in
-the folder that contains the project; `MIB2_CONFIG` (optional) points the
-tool at a config elsewhere. Hand-edit only if you prefer — this is what it
-looks like:
+The tool ships with a committed `config.json` **defaults template** (in git,
+generic, no personal data) plus a gitignored `config.local.json` for *your*
+car profile, created automatically by the
+[First run](#first-run-set-up-your-car-profile-no-config-editing) flow. You
+normally never edit config files by hand. Resolution order:
+
+1. `MIB2_CONFIG` env var → an explicit personal-config path (handy when you
+   want the profile outside the project).
+2. `<project>/config.local.json` → the personal config created by first run.
+3. `<project>/config.json` → the committed defaults template.
+
+Your `config.local.json` looks like this:
 
 ```json
 {
@@ -215,9 +221,9 @@ looks like:
   `maps/EEC/EEC_WLD/OVERALL.NDS`. When enabled, the install plan and the SD
   updater will restore that file after copying the new maps — required on
   units that shipped with a very old release (pre-2019).
-- Relative `dirs` values (work/downloads/backup) are resolved relative to the
-  folder that holds the project, keeping large data folders out of the git
-  repo.
+- Relative `dirs` values (work/downloads/backup) are resolved against the
+  folder holding `MIB2_CONFIG` when set, else the project folder — so large
+  data folders stay next to the config, outside git.
 
 ## First run: set up your car profile (no config editing)
 
@@ -231,8 +237,9 @@ CLI can detect your car from the SD card itself — or from a backup of it:
    **"Browse folders..."** to navigate to a backup folder containing `maps/`.
 3. Check the detected values in the form and edit anything you like
    (e.g. trim `wanted_countries` to the countries you actually drive).
-4. Press **"Save profile"**. The profile is written to `config.json` next to
-   the project; the tool picks it up immediately.
+4. Press **"Save profile"**. The profile is written to `config.local.json`
+   (a gitignored personal config; the committed `config.json` template stays
+   untouched) and the tool picks it up immediately.
 
 **From the CLI:**
 
@@ -255,8 +262,9 @@ What gets detected automatically:
 | wanted countries | the actual country coverage of the card/backup |
 | OVERALL.NDS workaround | **enabled** when the card release is pre-2019 (`< 1520`); the original `maps/EEC/EEC_WLD/OVERALL.NDS` is copied into the backup dir so the updater can restore it |
 
-If no config file exists anywhere yet, the UI shows a warning banner in
-step 1 until you save a profile.
+Until you save a profile, the UI shows a warning banner in step 1 and the
+CLI prints a "no car profile configured yet" note — a fresh install uses the
+committed defaults template, so this stays visible until you set your car up.
 
 ### Guardrails
 

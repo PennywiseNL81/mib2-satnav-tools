@@ -1,5 +1,7 @@
-# personal config (contains car details) - never commit
-config.json
+# personal config (contains car details) - never commit.
+# config.json is the committed defaults template; personal data goes to
+# config.local.json (created by the first-run car-profile setup).
+config.local.json
 
 # throwaway analysis output
 _work/

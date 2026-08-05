@@ -1,0 +1,23 @@
+{
+  "dirs": {
+    "work": "_work",
+    "downloads": "downloads",
+    "backup": "BACKUP",
+    "ne_geojson": "ne_50m.geojson"
+  },
+  "car": {
+    "make": "MIB2 Standard ECE",
+    "nav_series": "MIB2 Standard (DiscoverMedia2)",
+    "cartography": "TomTom",
+    "part_number": "",
+    "region_prefix": "ECE",
+    "original_release": "",
+    "card_size_gb": 16,
+    "sd_card": "VAG MIB2 SD card (CID-bound)",
+    "wanted_countries": ["NL", "DE", "BE", "LU", "GB", "IE", "FR", "AT", "CH"],
+    "workaround": {
+      "enabled": false,
+      "overall_backup": ""
+    }
+  }
+}

@@ -334,8 +334,9 @@ async function loadProfile() {
          ? " (OVERALL.NDS backup present)" : " (no OVERALL.NDS backup)");
   } else {
     st.className = "msg warn";
-    st.textContent = "No car profile configured yet. Detect it from your SD "
-      + "card or a backup folder below.";
+    st.textContent = "No car profile configured yet. First-time setup: detect "
+      + "it from your SD card or a backup folder below - this creates your "
+      + "personal config.local.json.";
   }
   const sel = document.getElementById("profSourceSel");
   sel.innerHTML = '<option value="">-- choose a detected folder --</option>'
