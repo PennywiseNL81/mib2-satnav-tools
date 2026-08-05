@@ -17,12 +17,14 @@ read, never modified.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
 import sqlite3
 import subprocess
 import tempfile
+import time
 import zipfile
 
 import matplotlib.path
@@ -351,7 +353,9 @@ def derive_profile(maps_path: str) -> dict:
             warnings.append(f"dbinfo.txt not readable: {e}")
     else:
         raise MapError(
-            f"not a MIB2 SD card/backup: no dbinfo.txt at {dbinfo}")
+            f"not a MIB2 SD card/backup: no dbinfo.txt at {dbinfo}. Pick the "
+            "SD card or a full backup of it (a folder containing "
+            "maps/00/nds/dbinfo.txt).")
 
     sys_name = info.get("SystemName", "").strip()
     version = info.get("ApplicationSoftwareVersionNumber", "").strip()
@@ -1177,11 +1181,72 @@ def search(m: Map, q: str, mode: str = "contains",
     return {"total": len(results), "results": results[:limit]}
 
 
+def osm_background(lon_min: float, lon_max: float, lat_min: float,
+                   lat_max: float, zoom: int = None, max_tiles: int = 256):
+    """Download + stitch OpenStreetMap tiles for a bbox (Web Mercator).
+
+    Returns ``(canvas, extent)``: a PIL RGB canvas and the matplotlib extent
+    ``(left, right, bottom, top)`` in the same data coordinates
+    ``render_coverage`` uses (x=lon, y=merc(lat)). Chooses a zoom so the
+    canvas is roughly ``max_px`` wide. Polite usage: single thread, an
+    identifying User-Agent, and a tile-count cap.
+    """
+    import io
+    import urllib.request
+    from PIL import Image
+
+    lon_span = max(1e-6, lon_max - lon_min)
+    if zoom is None:
+        zoom = int(math.ceil(math.log2(
+            max_px := 1600 * 360.0 / (lon_span * 256.0))))
+        zoom = max(2, min(zoom, 10))
+    n = 1 << zoom
+    x0 = (lon_min + 180) / 360 * n
+    x1 = (lon_max + 180) / 360 * n
+    y0 = (1 - math.asinh(math.tan(math.radians(lat_max))) / math.pi) / 2 * n
+    y1 = (1 - math.asinh(math.tan(math.radians(lat_min))) / math.pi) / 2 * n
+    tx0, tx1 = int(math.floor(x0)), int(math.ceil(x1) - 1e-9)
+    ty0, ty1 = int(math.floor(y0)), int(math.ceil(y1) - 1e-9)
+    if (tx1 - tx0 + 1) * (ty1 - ty0 + 1) > max_tiles:
+        raise MapError(f"coverage background would need "
+                       f"{tx1 - tx0 + 1}x{ty1 - ty0 + 1} OSM tiles "
+                       f"(zoom {zoom}); pick a smaller region or lower zoom")
+    canvas = Image.new("RGB", ((tx1 - tx0 + 1) * 256, (ty1 - ty0 + 1) * 256))
+    ua = ("mib2-satnav-tools/1.0 (personal VW MIB2 map tool; renders a "
+          "coverage map background)")
+    for ty in range(ty0, ty1 + 1):
+        for tx in range(tx0, tx1 + 1):
+            url = f"https://tile.openstreetmap.org/{zoom}/{tx}/{ty}.png"
+            last = None
+            for _attempt in range(3):
+                try:
+                    req = urllib.request.Request(
+                        url, headers={"User-Agent": ua})
+                    with urllib.request.urlopen(req, timeout=20) as resp:
+                        tile = Image.open(io.BytesIO(resp.read())).convert("RGB")
+                    break
+                except Exception as e:
+                    last = e
+                    time.sleep(1)
+            else:
+                raise MapError(f"failed to fetch OSM tile {url}: {last}")
+            canvas.paste(tile, ((tx - tx0) * 256, (ty - ty0) * 256))
+    extent = (tx0 / n * 360 - 180, (tx1 + 1) / n * 360 - 180,
+              180 * (1 - 2 * (ty1 + 1) / n), 180 * (1 - 2 * ty0 / n))
+    return canvas, extent
+
+
 def render_coverage(m: Map, out_path: str, dpi: int = 130,
-                    ne_path: str = None) -> dict:
-    """Render the Mercator hexbin coverage map. Returns stats."""
+                    ne_path: str = None, background: str = None) -> dict:
+    """Render the Mercator hexbin coverage map. Returns stats.
+
+    ``background="osm"`` draws OpenStreetMap tiles under the coverage (like
+    the web UI's Leaflet map) and saves a self-contained non-transparent PNG
+    with the required OSM attribution.
+    """
     import matplotlib
     matplotlib.use("Agg")
+    import matplotlib.patheffects as patheffects
     import matplotlib.pyplot as plt
 
     rows = m.conn.execute(
@@ -1213,6 +1278,11 @@ def render_coverage(m: Map, out_path: str, dpi: int = 130,
     colors = {rid: palette[i % len(palette)] for i, rid in enumerate(rid_order)}
 
     covered = m.covered_iso()
+    osm = background == "osm"
+    if osm:
+        canvas, ext = osm_background(lon_min, lon_max, lat_min, lat_max)
+        ax.imshow(canvas, extent=ext, origin="upper", zorder=0,
+                  interpolation="nearest")
     if ne_path and os.path.exists(ne_path):
         for poly in _load_ne(ne_path):
             covered_poly = poly["code"] in covered
@@ -1249,6 +1319,11 @@ def render_coverage(m: Map, out_path: str, dpi: int = 130,
     ax.set_ylabel("latitude")
     title = f"{m.info.get('SystemName', 'MIB2')} v{m.info.get('ApplicationSoftwareVersionNumber', '?')} - coverage"
     ax.set_title(f"{title}\n{m.name} ({len(rows)} place names in the index)")
+    if osm:
+        ax.text(0.995, 0.005, "© OpenStreetMap contributors", transform=ax.transAxes,
+                ha="right", va="bottom", fontsize=8, color="#333",
+                path_effects=[patheffects.withStroke(
+                    linewidth=2, foreground="white")])
     handles = [
         plt.Line2D([], [], marker="s", ls="", color=colors[rid], label=stats[rid]["label"])
         for rid in rid_order
@@ -1267,12 +1342,15 @@ def render_coverage(m: Map, out_path: str, dpi: int = 130,
         "bottom": (ax_in.y0 - tb.y0) / tb.height,
     }
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-    fig.patch.set_alpha(0)
-    ax.patch.set_alpha(0)
-    fig.savefig(out_path, dpi=dpi, bbox_inches=tb, transparent=True)
-    ax_path = os.path.join(os.path.dirname(os.path.abspath(out_path)),
-                           "coverage_ax.png")
-    fig.savefig(ax_path, dpi=dpi, bbox_inches=ax_in, transparent=True)
+    if osm:
+        fig.savefig(out_path, dpi=dpi, bbox_inches=tb, transparent=False)
+    else:
+        fig.patch.set_alpha(0)
+        ax.patch.set_alpha(0)
+        fig.savefig(out_path, dpi=dpi, bbox_inches=tb, transparent=True)
+        ax_path = os.path.join(os.path.dirname(os.path.abspath(out_path)),
+                               "coverage_ax.png")
+        fig.savefig(ax_path, dpi=dpi, bbox_inches=ax_in, transparent=True)
     plt.close(fig)
     return {
         "bbox": {"lon_min": round(lon_min, 4), "lon_max": round(lon_max, 4),

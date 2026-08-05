@@ -367,7 +367,9 @@ def api_browse():
         for name in sorted(os.listdir(path)):
             p = os.path.join(path, name)
             if os.path.isdir(p):
-                entries.append({"name": name, "path": p})
+                entries.append({"name": name, "path": p,
+                                "maps": os.path.isdir(
+                                    os.path.join(p, "maps"))})
     except OSError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     parent = os.path.dirname(path)

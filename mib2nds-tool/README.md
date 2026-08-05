@@ -55,8 +55,9 @@ available next time.
 
 Step 1 of the UI ("Car profile") auto-detects your car from the SD card or a
 backup folder and writes your personal `config.local.json` for you (the
-committed `config.json` template stays untouched): detect (SD card, a
-detected folder, or a folder picked with the built-in browser), review the
+committed `config.json` template stays untouched): detect (SD card, or a
+folder picked with the built-in browser — folders with a `maps/` tree are
+marked), review the
 form (per-field `?` tooltips explain what is detected vs. manually filled),
 save. The CLI equivalent is `update_sd.py profile [--from <folder>]`.
 Detection reads only `dbinfo.txt` + the tiny per-region `OVERALL.NDS` files
@@ -72,7 +73,7 @@ enabled OVERALL.NDS workaround needs a valid (ZV-zlib) original
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> countries
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search Nijmegen
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search "Den Haag" --contains
-mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/map.png
+mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/map.png --osm
 
 # compatibility check (default wanted countries from config, or --wanted)
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
@@ -81,6 +82,18 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
 
 `search` and `coverage` convert the package on request (into
 `_work/nds_out_<name>/`).
+
+### Coverage map
+
+`coverage` renders the real name-index density on top of country
+boundaries (yellow = covered countries): see the example in the top-level
+README (`docs/coverage_map.png`, a DL2 2710 / ECE 2027 package). With
+`--osm` it draws an OpenStreetMap background (like the web UI's Leaflet
+map) and saves a self-contained non-transparent PNG with the OSM
+attribution. The boundaries come from `dirs.ne_geojson` or the
+`NE_COUNTRIES` env var (installable with `install.py --ne`); without them
+the map renders borderless and region labels fall back to numbers. The web
+UI (step 4/5) uses the same renderer.
 
 ## nds2sqlite.py — NDS → SQLite converter (low level)
 

@@ -95,14 +95,13 @@
        the profile is written to <code>config.json</code> next to the project.</p>
     <div id="profStatus" class="info"></div>
     <div class="row">
-      <button id="btnProfSd" onclick="detectProfile('sd')">Detect from SD card</button>
+      <button id="btnProfSd" onclick="detectFrom(null)">Detect from SD card</button>
       <span class="muted">or</span>
-      <select id="profSourceSel" style="flex:1; min-width:220px;">
-        <option value="">-- choose a detected folder --</option>
-      </select>
-      <button class="ghost" onclick="detectProfile('folder')">Detect from folder</button>
       <button class="ghost" onclick="openBrowse()">Browse folders...</button>
     </div>
+    <p class="muted" style="margin-top:8px;">Valid sources: the SD card itself, or a
+       full backup of it (a folder containing <code>maps/00/nds/dbinfo.txt</code>).
+       Detection only reads the source; your folders are never modified.</p>
     <div id="profForm" style="display:none;">
       <div class="grid2" id="profFields" style="margin-top:12px;"></div>
       <div class="row" style="margin-top:12px;">
@@ -250,7 +249,7 @@
     <div class="row" style="margin-top:12px;">
       <button class="ghost" id="btnBrowseUp" onclick="browseUp()">Up</button>
       <button class="ghost" id="btnBrowseHome" onclick="browseTo('')">Home</button>
-      <button id="btnBrowsePick" onclick="pickBrowse()">Use this folder</button>
+      <button id="btnBrowsePick" onclick="pickBrowse()">Detect from this folder</button>
       <span id="browseInfo" class="muted"></span>
     </div>
   </div>
@@ -338,10 +337,6 @@ async function loadProfile() {
       + "it from your SD card or a backup folder below - this creates your "
       + "personal config.local.json.";
   }
-  const sel = document.getElementById("profSourceSel");
-  sel.innerHTML = '<option value="">-- choose a detected folder --</option>'
-    + (d.sources || []).map(s =>
-        '<option value="' + esc(s.path) + '">' + esc(s.label) + "</option>").join("");
 }
 
 function profField(label, input, help) {
@@ -457,17 +452,6 @@ async function detectFrom(path) {
   setMsg(res, "ok", msg);
 }
 
-async function detectProfile(mode) {
-  if (mode === "sd") { await detectFrom(null); return; }
-  const p = document.getElementById("profSourceSel").value;
-  if (!p) {
-    setMsg(document.getElementById("profResult"), "err",
-      "Choose a detected folder from the dropdown, or use 'Browse folders...'.");
-    return;
-  }
-  await detectFrom(p);
-}
-
 /* ---- folder browser (localhost only) ---- */
 let browsePath = "";
 let browseParent = null;
@@ -521,9 +505,12 @@ async function loadBrowse() {
       + esc(dr.name) + "</div>";
   }
   for (const e of d.entries) {
+    const badge = e.maps
+      ? '<span style="margin-left:6px; padding:1px 6px; border:1px solid #4ade80; color:#4ade80; border-radius:8px; font-size:11px;">contains maps/</span>'
+      : "";
     html += '<div class="res-row" style="padding:6px 8px;" data-p="'
       + esc(e.path) + '" onclick="browseTo(this.dataset.p)">&#128193; '
-      + esc(e.name) + "</div>";
+      + esc(e.name) + badge + "</div>";
   }
   if (!html) html = '<div class="info" style="padding:8px;">(no subfolders)</div>';
   document.getElementById("browseBody").innerHTML = html;
@@ -535,7 +522,7 @@ async function loadBrowse() {
 async function pickBrowse() {
   if (!browsePath) {
     setMsg(document.getElementById("profResult"), "err",
-      "Go into a folder first, then press 'Use this folder'.");
+      "Go into a folder first, then press 'Detect from this folder'.");
     return;
   }
   closeBrowse();

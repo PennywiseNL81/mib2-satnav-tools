@@ -12,6 +12,14 @@ This project grew out of updating a 2016 MIB2 Standard car (original map
 `0635`) to the current `2710` / ECE 2027 release. It is not affiliated with
 Volkswagen, SEAT, Škoda or Audi.
 
+The tool renders the **actual place-name coverage** of any map package on an
+OpenStreetMap background — this is the real name-index coverage of
+`DiscoverMedia2_EU-DL2_2710_V24` (ECE DL2 2027, yellow = covered countries):
+
+![Coverage map of the DL2 2710 package](docs/coverage_map.png)
+
+*Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.*
+
 **[INSTALLATION →](#installation)**
 
 This project was created with [opencode](https://opencode.ai), an open-source
@@ -42,6 +50,8 @@ AI coding assistant.
 > SD-card updater** — the analysis/check features alone are harmless.
 
 ## Features
+
+![Coverage map of the DL2 2710 package](docs/coverage_map.png)
 
 - **Compatibility check per package** (`compat`): nav series (Standard vs.
   High/Plus/Pro), region (`SystemName` in `dbinfo.txt` vs. your configured
@@ -162,8 +172,8 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> compat
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search Nijmegen
 mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> search "Den Haag" --contains
 
-# render a coverage map
-mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/map.png
+# render a coverage map (--osm adds the OpenStreetMap background)
+mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map <folder-or-zip> coverage --out _work/map.png --osm
 
 # SD-card updater
 mib2nds-tool/.venv/bin/python sd-updater/update_sd.py detect
@@ -174,6 +184,21 @@ mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile   # auto-setup car
 
 All generated output goes to `_work/` (throwaway). Source packages are only
 read, never modified.
+
+## Map coverage
+
+After the one-time NDS → SQLite conversion (step 4 in the web UI, or the
+`search`/`coverage` CLI commands) the tool can render the real name-index
+coverage of a package: yellow countries are covered, the coloured hexbin
+shows the density of place-name entries per region.
+
+The example at the top of this README is the installed
+**DiscoverMedia2_EU-DL2_2710_V24** package
+(ECE DL2 2027): regions E11 (AUT/CHE/ITA/LIE/MLT/SMR/VAT), E12
+(BEL/LUX/NLD), E2 (AND/FRA/MCO), E3 (GBR/IRL/ISL) and E4 (DEU) are present.
+Rendered with `query.py --map <package> coverage --out docs/coverage_map.png
+--osm` (an OpenStreetMap background, matching the web UI; country boundaries
+via `NE_COUNTRIES` / `dirs.ne_geojson`).
 
 ## Configuration
 
@@ -233,8 +258,8 @@ CLI can detect your car from the SD card itself — or from a backup of it:
 **In the web UI (easiest):**
 1. Start the UI (`./start-mapui.sh`, then open http://127.0.0.1:5000).
 2. In **step 1 "Car profile"** press **"Detect from SD card"** (card in the
-   cardreader), pick a detected folder from the dropdown, or use
-   **"Browse folders..."** to navigate to a backup folder containing `maps/`.
+   cardreader), or **"Browse folders..."** to navigate to any backup folder
+   containing `maps/` (folders with a `maps/` tree are marked).
 3. Check the detected values in the form and edit anything you like
    (e.g. trim `wanted_countries` to the countries you actually drive).
 4. Press **"Save profile"**. The profile is written to `config.local.json`

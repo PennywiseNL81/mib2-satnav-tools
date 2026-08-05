@@ -4,7 +4,7 @@
 Subcommands:
   search <name>       Find places by (exact) name in the full-text name index.
   countries           List update regions and the countries they cover.
-  coverage [--out X]  Render a Europe map with the actual data coverage.
+  coverage [--out X] [--osm]  Render a Europe map with the actual data coverage.
   compat [--wanted ..] Check whether a map package fits the reference car.
 """
 
@@ -51,7 +51,8 @@ def _map_from_args(args):
     mapdata.ensure_countries(source, nds_out)
     if args.cmd in ("search", "coverage"):
         mapdata.ensure_search(source, nds_out)
-    return mapdata.Map(source, nds_out, ne_path=getattr(args, "ne", None))
+    return mapdata.Map(source, nds_out,
+                       ne_path=getattr(args, "ne", None) or mapdata.DEFAULT_NE)
 
 
 def cmd_search(args):
@@ -150,7 +151,8 @@ def cmd_coverage(args):
     if getattr(args, "map", None):
         m = _map_from_args(args)
         stats = mapdata.render_coverage(m, args.out, dpi=args.dpi,
-                                        ne_path=args.ne)
+                                        ne_path=args.ne or mapdata.DEFAULT_NE,
+                                        background="osm" if args.osm else None)
         print(f"wrote {args.out}", file=sys.stderr)
         for rid, s in sorted(stats["regions"].items()):
             print(f"  region {rid} ({s['label']}): {s['count']} points",
@@ -286,6 +288,9 @@ def main():
     p.add_argument("--out", default=os.path.join(mapdata.WORK, "coverage_eu1.png"))
     p.add_argument("--dpi", type=int, default=130)
     p.add_argument("--ne", help="Natural Earth countries GeoJSON path")
+    p.add_argument("--osm", action="store_true",
+                   help="draw an OpenStreetMap background (like the web UI) "
+                        "instead of a transparent image")
     p.set_defaults(func=cmd_coverage)
 
     p = sub.add_parser("compat", help="is this map compatible with the car?")
