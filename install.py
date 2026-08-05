@@ -59,6 +59,18 @@ def is_checkout(root: str) -> bool:
     return os.path.isfile(os.path.join(root, "mib2nds-tool", "mapui.py"))
 
 
+def _zipball_url(url: str) -> str:
+    """Accept a plain repo URL and turn it into a downloadable archive.
+
+    ``https://github.com/user/repo`` serves HTML; the zipball is at
+    ``.../archive/HEAD.zip`` (redirects to the default branch). Direct
+    ``.zip`` URLs pass through unchanged.
+    """
+    if url.lower().endswith(".zip"):
+        return url
+    return url.rstrip("/") + "/archive/HEAD.zip"
+
+
 def pull_repo(url: str, dest_dir: str) -> None:
     """Download the repo archive and extract it into dest_dir."""
     if not url:
@@ -66,6 +78,7 @@ def pull_repo(url: str, dest_dir: str) -> None:
             "This standalone install.py needs the repository location; "
             "set MIB2_REPO_URL (e.g. "
             "https://github.com/pennywiseNL81/mib2-satnav-tools).")
+    url = _zipball_url(url)
     log(f"downloading repo from {url}")
     with urllib.request.urlopen(url, timeout=60) as resp:
         data = resp.read()
@@ -90,7 +103,16 @@ def create_venv(tool_dir: str) -> str:
         log(f"venv already exists: {venv_dir}")
         return venv_dir
     log(f"creating venv: {venv_dir}")
-    subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+    try:
+        subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+    except subprocess.CalledProcessError:
+        if os.name != "nt":
+            sys.exit(
+                "Could not create the virtualenv (pip is missing in it).\n"
+                "On Debian/Ubuntu install the python3-venv package first:\n"
+                "    sudo apt install python3-venv\n"
+                "then re-run this installer.")
+        raise
     return venv_dir
 
 

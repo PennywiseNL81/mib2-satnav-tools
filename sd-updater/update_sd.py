@@ -211,6 +211,7 @@ def install_to_sd(sd_mount: str, source_path: str, backup_dir: str = None,
     if not backup_dir:
         backup_dir = os.path.join(
             mapdata.BACKUP_DIR, "SDcard_" + time.strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(mapdata.BACKUP_DIR, exist_ok=True)
     if not dry_run:
         os.makedirs(backup_dir, exist_ok=True)
     used_on_sd = mapdata._dir_size(sd_mount)
