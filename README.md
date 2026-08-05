@@ -51,8 +51,6 @@ AI coding assistant.
 
 ## Features
 
-![Coverage map of the DL2 2710 package](docs/coverage_map.png)
-
 - **Compatibility check per package** (`compat`): nav series (Standard vs.
   High/Plus/Pro), region (`SystemName` in `dbinfo.txt` vs. your configured
   `region_prefix`, default `ECE`), version vs. known releases (warns when a
