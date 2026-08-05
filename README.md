@@ -75,6 +75,8 @@ AI coding assistant.
 ## Requirements
 
 - Python 3.10+
+- on Debian/Ubuntu: the `python3-venv` package (so `python3 -m venv` can
+  create a pip-enabled virtualenv), e.g. `sudo apt install python3-venv`
 - `cryptography`, `matplotlib`, `flask` (see `requirements.txt`)
 - the `7z` binary on `PATH` for `.7z` packages (folders and `.zip` work
   without it; the tool auto-detects `7z`/`7zz`/`7za` and the standard
