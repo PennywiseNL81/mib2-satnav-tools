@@ -114,9 +114,8 @@ WORK = _dir_key("work", "_work")
 DOWNLOAD_DIR = _dir_key("downloads", "downloads")
 EXTRACTED_DIR = os.path.join(DOWNLOAD_DIR, "extracted")
 BACKUP_DIR = _dir_key("backup", "BACKUP")
-DEFAULT_NE = (os.environ.get("NE_COUNTRIES")
-              or config().get("dirs", {}).get("ne_geojson")
-              or os.path.join(tempfile.gettempdir(), "ne_50m.geojson"))
+DEFAULT_NE = os.environ.get("NE_COUNTRIES") or _dir_key(
+    "ne_geojson", os.path.join(tempfile.gettempdir(), "ne_50m.geojson"))
 
 ISO_NAMES = {
     "AD": "Andorra", "AL": "Albania", "AT": "Austria", "BA": "Bosnia and Herzegovina",
@@ -290,9 +289,8 @@ def reload_config():
     DOWNLOAD_DIR = _dir_key("downloads", "downloads")
     EXTRACTED_DIR = os.path.join(DOWNLOAD_DIR, "extracted")
     BACKUP_DIR = _dir_key("backup", "BACKUP")
-    DEFAULT_NE = (os.environ.get("NE_COUNTRIES")
-                  or config().get("dirs", {}).get("ne_geojson")
-                  or os.path.join(tempfile.gettempdir(), "ne_50m.geojson"))
+    DEFAULT_NE = os.environ.get("NE_COUNTRIES") or _dir_key(
+        "ne_geojson", os.path.join(tempfile.gettempdir(), "ne_50m.geojson"))
 
 
 def resolve_config_path() -> str:

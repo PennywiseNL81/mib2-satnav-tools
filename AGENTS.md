@@ -31,6 +31,7 @@ mib2-satnav-tools/
 ├── setup.sh / setup.bat      # wrappers around install.py
 ├── start-mapui.sh / .bat     # start the web UI (uses the venv if present)
 ├── stop-mapui.sh / .bat      # stop the web UI on port 5000 (via stop_mapui.py)
+├── docs/coverage_map.png     # rendered example coverage map (OSM background), hero image in README
 ├── sd-updater/
 │   └── update_sd.py          # SD-card updater (CLI + web tab)
 ├── mib2nds-tool/
@@ -110,7 +111,11 @@ are the shared implementation and write nothing on their own.
 `query.py coverage` needs Natural Earth 50m country boundaries in a GeoJSON
 file (`NE_COUNTRIES` env var, or `dirs.ne_geojson` in the config); `install.py
 --ne` downloads it. Without it the map renders without borders and region
-labels fall back to numbers.
+labels fall back to numbers. With `--osm` it draws an OpenStreetMap tile
+background (the same look as the web UI's Leaflet map, requires network for
+the tiles) and saves a self-contained, non-transparent PNG with the OSM
+attribution — the README hero image `docs/coverage_map.png` is rendered that
+way.
 
 ## Rules
 
