@@ -53,8 +53,9 @@ jobs:
           MIB2_CONFIG: "${{ runner.temp }}/ci_config.json"
         run: |
           mkdir -p "$GITHUB_WORKSPACE/BACKUP"
+          ws=${GITHUB_WORKSPACE//\\//}
           printf '{"dirs":{"work":"%s/_work","downloads":"%s/downloads","backup":"%s/BACKUP"}}\n' \
-            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" \
+            "$ws" "$ws" "$ws" \
             > "$MIB2_CONFIG"
           python sd-updater/update_sd.py install \
             --source tests/fixtures/mini_map \
@@ -66,8 +67,9 @@ jobs:
           MIB2_CONFIG: "${{ runner.temp }}/ci_profile_config.json"
         run: |
           mkdir -p "$GITHUB_WORKSPACE/BACKUP"
+          ws=${GITHUB_WORKSPACE//\\//}
           printf '{"dirs":{"work":"%s/_work","downloads":"%s/downloads","backup":"%s/BACKUP"}}\n' \
-            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" \
+            "$ws" "$ws" "$ws" \
             > "$MIB2_CONFIG"
           out=$(python sd-updater/update_sd.py profile \
             --from tests/fixtures/mini_card_0635 --yes)
