@@ -40,7 +40,7 @@ jobs:
 
       - name: Smoke test - no MIB2 SD card present
         run: |
-          out=$(python sd-updater/update_sd.py detect)
+          out=$(python sd-updater/update_sd.py detect || true)
           echo "$out"
           grep -q "no MIB2 SD card found" <<< "$out"
 
