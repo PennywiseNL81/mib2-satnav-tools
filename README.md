@@ -90,15 +90,27 @@ AI coding assistant.
 
 ### One command
 
-```bash
-# in an existing checkout (creates the venv, installs requirements,
-# reports on 7-Zip; add --ne to also fetch the Natural Earth borders)
-./setup.sh              # Windows: setup.bat
+Two ways to get the tool running — both create the venv, install the
+requirements and check for 7-Zip (`--ne` also fetches the Natural Earth
+borders). They differ in **how the source code arrives**:
 
-# standalone bootstrap (repo archive is pulled via MIB2_REPO_URL)
-MIB2_REPO_URL=https://github.com/pennywiseNL81/mib2-satnav-tools \
-  python <(curl -fsSL https://raw.githubusercontent.com/pennywiseNL81/mib2-satnav-tools/main/install.py)
-```
+- **In an existing checkout** — for when you already have the repo (e.g. via
+  `git clone` below). This keeps the `.git/` history, so you can later
+  `git pull` the latest version:
+
+  ```bash
+  ./setup.sh              # Windows: setup.bat
+  ```
+
+- **Standalone, no git needed** — `install.py` downloads the repo archive
+  from GitHub itself and sets everything up in the current directory. You get
+  a plain snapshot without `.git/` history (updates = re-run the command in
+  a fresh folder):
+
+  ```bash
+  MIB2_REPO_URL=https://github.com/pennywiseNL81/mib2-satnav-tools \
+    python <(curl -fsSL https://raw.githubusercontent.com/pennywiseNL81/mib2-satnav-tools/main/install.py)
+  ```
 
 ### Or manually
 
