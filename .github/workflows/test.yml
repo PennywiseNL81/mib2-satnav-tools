@@ -76,15 +76,7 @@ jobs:
           grep -q "workaround: enabled" <<< "$out"
           grep -q "0635 (ECE1 2016/17)" <<< "$out"
           test -f "$GITHUB_WORKSPACE/BACKUP/original/maps/EEC/EEC_WLD/OVERALL.NDS"
-          python - <<'PY'
-import json, os
-cfg = json.load(open(os.environ["MIB2_CONFIG"]))
-assert cfg["car"]["part_number"] == "6P0919866H"
-assert cfg["car"]["workaround"]["enabled"] is True
-assert cfg["car"]["original_release"] == "0635 (ECE1 2016/17)"
-assert cfg["car"]["region_prefix"] == "ECE"
-print("profile config ok")
-PY
+          python -c "import json, os; cfg=json.load(open(os.environ['MIB2_CONFIG'])); assert cfg['car']['part_number']=='6P0919866H'; assert cfg['car']['workaround']['enabled'] is True; assert cfg['car']['original_release']=='0635 (ECE1 2016/17)'; assert cfg['car']['region_prefix']=='ECE'; print('profile config ok')"
 
       - name: Smoke test - web UI start + shutdown
         run: |
