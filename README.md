@@ -104,15 +104,20 @@ borders). They differ in **how the source code arrives**:
   ./setup.sh              # Windows: setup.bat
   ```
 
-- **Standalone, no git needed** — `install.py` downloads the repo archive
-  from GitHub itself and sets everything up in the current directory. You get
-  a plain snapshot without `.git/` history (updates = re-run the command in
-  a fresh folder):
+- **Standalone, no git needed** — download the installer once, then run it
+  (optionally into a specific folder). It pulls the repo archive from GitHub
+  itself and sets everything up. You get a plain snapshot without `.git/`
+  history (updates = download the installer again and re-run it in a fresh
+  folder):
 
   ```bash
-  MIB2_REPO_URL=https://github.com/pennywiseNL81/mib2-satnav-tools \
-    python <(curl -fsSL https://raw.githubusercontent.com/pennywiseNL81/mib2-satnav-tools/main/install.py)
+  curl -fsSL https://raw.githubusercontent.com/pennywiseNL81/mib2-satnav-tools/main/install.py -o install.py
+  python3 install.py            # into the current directory
+  python3 install.py ~/mib2-tools   # into a specific folder
   ```
+
+  (`MIB2_REPO_URL=https://github.com/<owner>/<repo>` before `python3` makes
+  the installer pull from a fork.)
 
 ### Or manually
 

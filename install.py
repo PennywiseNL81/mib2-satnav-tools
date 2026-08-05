@@ -12,7 +12,9 @@
 Usage:
     python install.py                 # inside an existing checkout
     python install.py --ne            # also fetch Natural Earth borders
-    MIB2_REPO_URL=<github-url> python install.py   # standalone bootstrap
+    python install.py [folder]        # standalone: pull the repo into <folder>
+                                      # (default: current directory)
+    MIB2_REPO_URL=<github-url> python install.py [folder]  # pull from a fork
 
 The Python running this must be 3.10+ (pure stdlib, no dependencies).
 """
@@ -27,7 +29,8 @@ import sys
 import urllib.request
 import zipfile
 
-REPO_URL = os.environ.get("MIB2_REPO_URL", "")
+DEFAULT_REPO = "https://github.com/pennywiseNL81/mib2-satnav-tools"
+REPO_URL = os.environ.get("MIB2_REPO_URL") or DEFAULT_REPO
 ROOT = os.path.dirname(os.path.abspath(__file__))
 NE_URL = ("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/"
           "master/geojson/ne_50m_admin_0_countries.geojson")
@@ -74,10 +77,7 @@ def _zipball_url(url: str) -> str:
 def pull_repo(url: str, dest_dir: str) -> None:
     """Download the repo archive and extract it into dest_dir."""
     if not url:
-        sys.exit(
-            "This standalone install.py needs the repository location; "
-            "set MIB2_REPO_URL (e.g. "
-            "https://github.com/pennywiseNL81/mib2-satnav-tools).")
+        sys.exit("internal error: no repository URL to download")
     url = _zipball_url(url)
     log(f"downloading repo from {url}")
     with urllib.request.urlopen(url, timeout=60) as resp:
@@ -167,6 +167,9 @@ def download_ne(out_path: str) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("dest", nargs="?", default=None,
+                    help="standalone: target folder to install the repo into "
+                         "(default: current directory)")
     ap.add_argument("--ne", action="store_true",
                     help="download the Natural Earth countries GeoJSON")
     ap.add_argument("--ne-out", default=None,
@@ -175,13 +178,22 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     check_python()
 
-    root = ROOT
-    if not is_checkout(root):
-        if is_checkout(os.getcwd()):
-            root = os.getcwd()
+    if args.dest:
+        dest = os.path.abspath(args.dest)
+        if is_checkout(dest):
+            root = dest
         else:
-            pull_repo(REPO_URL, os.getcwd())
-            root = os.getcwd()
+            os.makedirs(dest, exist_ok=True)
+            pull_repo(REPO_URL, dest)
+            root = dest
+    else:
+        root = ROOT
+        if not is_checkout(root):
+            if is_checkout(os.getcwd()):
+                root = os.getcwd()
+            else:
+                pull_repo(REPO_URL, os.getcwd())
+                root = os.getcwd()
     tool_dir = os.path.join(root, "mib2nds-tool")
 
     venv = create_venv(tool_dir)
