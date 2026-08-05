@@ -12,6 +12,8 @@ This project grew out of updating a 2016 MIB2 Standard car (original map
 `0635`) to the current `2710` / ECE 2027 release. It is not affiliated with
 Volkswagen, SEAT, Škoda or Audi.
 
+**[Install & quick start →](#quick-start)**
+
 This project was created with [opencode](https://opencode.ai), an open-source
 AI coding assistant.
 
