@@ -177,9 +177,12 @@ read, never modified.
 
 ## Configuration
 
-`config.json` is resolved from (first hit wins): the `MIB2_CONFIG` env var,
-`config.json` one level above the repo, or `config.json` in the repo root.
-It is **not** committed — copy `config.example.json` and fill in your car.
+`config.json` holds your car profile and folder locations. It is **not**
+committed (a fresh install has none) — the [First run](#first-run-set-up-your-car-profile-no-config-editing)
+flow creates it automatically, so you normally never touch it. It lives in
+the folder that contains the project; `MIB2_CONFIG` (optional) points the
+tool at a config elsewhere. Hand-edit only if you prefer — this is what it
+looks like:
 
 ```json
 {
@@ -212,9 +215,9 @@ It is **not** committed — copy `config.example.json` and fill in your car.
   `maps/EEC/EEC_WLD/OVERALL.NDS`. When enabled, the install plan and the SD
   updater will restore that file after copying the new maps — required on
   units that shipped with a very old release (pre-2019).
-- Relative `dirs` values are anchored to the workspace root (the repo's
-  parent when writable, else the repo root) — the same place the default
-  `config.json` lives, keeping large data folders out of the git repo.
+- Relative `dirs` values (work/downloads/backup) are resolved relative to the
+  folder that holds the project, keeping large data folders out of the git
+  repo.
 
 ## First run: set up your car profile (no config editing)
 
