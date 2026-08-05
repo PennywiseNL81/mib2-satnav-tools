@@ -116,17 +116,28 @@ borders). They differ in **how the source code arrives**:
   python3 install.py ~/mib2-tools   # into a specific folder
   ```
 
+Either way, **first time after installing** you create your car profile
+(detected from your SD card or a backup — no config editing); see
+[First run](#first-run-set-up-your-car-profile-no-config-editing) below.
+
 ### Or manually
 
 ```bash
 git clone https://github.com/pennywiseNL81/mib2-satnav-tools.git && cd mib2-satnav-tools
 python3 -m venv mib2nds-tool/.venv
 mib2nds-tool/.venv/bin/pip install -r requirements.txt
+```
 
-# (your car profile / config.json is created in "First run" below —
-#  no need to copy the example by hand; copy it only if you prefer
-#  hand-editing:  cp config.example.json config.json)
+**First time after installing**, set up your car profile — the tool detects
+everything from your SD card (or a backup of it), no config editing needed:
 
+```bash
+mib2nds-tool/.venv/bin/python sd-updater/update_sd.py profile
+```
+
+Then start the UI or use the CLI:
+
+```bash
 # web UI -> http://127.0.0.1:5000
 ./start-mapui.sh        # Windows: start-mapui.bat
 
