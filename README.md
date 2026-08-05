@@ -20,10 +20,10 @@ AI coding assistant.
 > ## ⚠️ USE AT YOUR OWN RISK
 >
 > This tool **modifies the contents of your satnav SD card**. A wrong region,
-> stream or firmware combination — or a botched update — can leave your
-> navigation **non-functional** and, in the worst case, can affect the
-> infotainment unit itself. **You are solely responsible** for anything that
-> happens to your car or SD card.
+> stream or version — or a botched update — can leave your navigation
+> **non-functional** until the original card contents are restored (the unit
+> only reads the card; it does not install anything from it). **You are solely
+> responsible** for anything that happens to your car or SD card.
 >
 > Before you do anything:
 > 1. **Back up the original SD card first** (the tool does this automatically
