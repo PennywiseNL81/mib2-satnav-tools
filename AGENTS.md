@@ -138,6 +138,25 @@ way.
 - GitHub hygiene: this is a live public repo. Develop and test locally in the
   working tree; commit only coherent units and push a finished set of related
   changes once the smoke tests are green — do not push every small change.
+
+## Branching & releases
+
+Workflow is GitHub Flow on this repo:
+
+- `main` is always green and releasable; tags/releases are only ever created
+  from `main`.
+- Each unit of work gets a short-lived branch named by kind:
+  `feature/<slug>`, `fix/<slug>`, `docs/<slug>`, `chore/<slug>`.
+- Open a pull request for the branch (CI runs via the `pull_request`
+  trigger), merge to `main`, then delete the branch. Trivial one-line fixes
+  may be committed directly to `main`.
+- Releases follow SemVer with `v`-prefixed tags (`v0.1.0`). Before tagging:
+  smoke tests green (see above), then `git tag -a vX.Y.Z -m "..."`, push the
+  tag, and cut the release with `gh release create` (release notes summarise
+  the changes since the last tag). Update `CHANGELOG.md` per release.
+- git authenticates via HTTPS (gh credential helper); the global opencode
+  rule about the SSH passphrase prompt applies when the SSH key path is used
+  instead.
 - All user-facing strings (UI, CLI, docs) are English; keep them that way.
 
 ## Tests
