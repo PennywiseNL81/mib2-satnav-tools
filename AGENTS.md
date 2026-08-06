@@ -135,6 +135,9 @@ way.
 - Run the smoke tests after changes (`tests/fixtures/mini_map` + CI workflow
   in `.github/workflows/test.yml`): compile every module and exercise the
   fixture through `query.py compat` and `update_sd.py install --dry-run`.
+- GitHub hygiene: this is a live public repo. Develop and test locally in the
+  working tree; commit only coherent units and push a finished set of related
+  changes once the smoke tests are green — do not push every small change.
 - All user-facing strings (UI, CLI, docs) are English; keep them that way.
 
 ## Tests

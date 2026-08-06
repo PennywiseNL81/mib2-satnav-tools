@@ -16,6 +16,8 @@ read, never modified.
 """
 from __future__ import annotations
 
+__version__ = "0.1.0"
+
 import json
 import math
 import os
@@ -273,8 +275,10 @@ def install_plan(profile: dict = None) -> dict:
                 "from the car (set car.workaround.overall_backup in the config). "
                 "The unit is paired to the original map release.")
     manual = [
-        "Eject cleanly via infotainment (Settings > Safely remove > SD1), insert the "
-        "card into SD slot 1 while the unit is off, and start navigation.",
+        "Eject the SD card from the computer's card reader (safe-remove in the "
+        "file manager) and insert it into SD slot 1 with the unit switched off.",
+        "Switch on the infotainment and start navigation; the unit reads the "
+        "new maps.",
         "Re-set your POIs (fuel stations, parking lots etc.); they are "
         "cleared by the update.",
     ]

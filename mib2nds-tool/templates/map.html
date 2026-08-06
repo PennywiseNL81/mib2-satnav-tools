@@ -20,7 +20,15 @@
   .card { background:var(--card); border:1px solid #334155;
           border-radius:10px; padding:16px 18px; margin-bottom:16px; }
   .card h2 { margin:0 0 10px; font-size:16px; }
-  .card h2 .step { color:var(--acc); margin-right:6px; }
+  .tabs { display:flex; gap:4px; max-width:1060px; margin:0 auto; padding:8px 24px 0; }
+  .tabs button { background:transparent; border:0; border-bottom:3px solid transparent;
+                 color:var(--muted); padding:8px 12px; font-weight:600; cursor:pointer;
+                 font-size:14px; border-radius:6px 6px 0 0; }
+  .tabs button:hover { color:var(--fg); background:rgba(255,255,255,.04); }
+  .tabs button.active { color:var(--acc); border-bottom-color:var(--acc); }
+  .tabpanel { display:none; }
+  .tabpanel.active { display:block; }
+  .card h3.sub { margin:14px 0 8px; font-size:14px; color:var(--acc); }
   .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   input[type=text], select { background:#0f172a; color:var(--fg);
           border:1px solid #475569; border-radius:6px; padding:8px 10px; }
@@ -78,17 +86,24 @@
 </head>
 <body>
 <header>
-  <h1>MIB2 Map checker</h1>
+  <h1>MIB2 Map checker <span class="muted" style="font-size:13px;font-weight:400;">v{{ version }}</span></h1>
   <p>Check a downloaded map (folder with <code>maps/</code>, <code>.zip</code> or
      <code>.7z</code>): compatibility with your profile, instant country coverage,
      search + coverage map after a one-time conversion. Plus update-check,
      SD-updater and cleanup.</p>
 </header>
+<nav class="tabs">
+  <button class="tab active" data-tab="profile" onclick="switchTab('profile')">Car profile</button>
+  <button class="tab" data-tab="update" onclick="switchTab('update')">Update</button>
+  <button class="tab" data-tab="map" onclick="switchTab('map')">Map</button>
+  <button class="tab" data-tab="maint" onclick="switchTab('maint')">Maintenance</button>
+</nav>
 <main>
 
+  <section class="tabpanel active" id="tab-profile">
   <div class="card" id="cardProfile">
-    <h2><span class="step">1</span>Car profile</h2>
-    <p class="muted">The reference car used by the compatibility check (step 2).
+    <h2>Car profile</h2>
+    <p class="muted">The reference car used by the compatibility check (in the Map tab).
        Detect it from your SD card or a backup of it: part number, region,
        original map release, card size, covered countries and the OVERALL.NDS
        workaround are all filled in automatically. Edit anything, then save —
@@ -111,9 +126,12 @@
       <div id="profResult"></div>
     </div>
   </div>
+  </section>
 
+  <section class="tabpanel" id="tab-map">
   <div class="card" id="cardSelect">
-    <h2><span class="step">2</span>Choose a map</h2>
+    <h2>Choose a map</h2>
+    <h3 class="sub">Downloaded maps</h3>
     <div class="row">
       <select id="selCand" style="flex:1; min-width:200px;">
         <option value="">-- choose a detected map --</option>
@@ -121,21 +139,29 @@
         <option value="{{ c.path }}">{{ c.label }} ({{ c.kind }}{% if c.search_ready %}, converted{% endif %})</option>
         {% endfor %}
       </select>
-      <span class="muted">or</span>
-      <input type="text" id="inPath" placeholder="/path/to/map-folder or file.zip">
-      <button id="btnLoad" onclick="loadMap()">Load map</button>
+      <button onclick="loadMap()">Load map</button>
     </div>
-    <div class="info">Project root: <code>{{ root }}</code></div>
+    <p class="muted">Scans: project root · <code>{{ downloads }}</code> · <code>{{ extracted }}</code>.
+       Downloaded packages appear here and are offered to the SD updater in the Update tab.
+       <button class="ghost" onclick="refreshCandidates()">Rescan</button></p>
+    <h3 class="sub">Load from disk &mdash; viewer only</h3>
+    <div class="row">
+      <input type="text" id="inPath" placeholder="/path/to/map-folder or file.zip">
+      <button class="ghost" onclick="openBrowseMap()">Browse&hellip;</button>
+      <button class="ghost" onclick="loadManual()">Load</button>
+    </div>
+    <p class="muted">For viewing/analysis only (coverage, search, compatibility). A map loaded from disk
+       is not offered to the SD updater in the Update tab.</p>
     <div id="selStatus"></div>
   </div>
 
   <div class="card" id="cardResult" style="display:none;">
-    <h2><span class="step">3</span>Validation &amp; country coverage</h2>
+    <h2>Validation &amp; country coverage</h2>
     <div id="resultBody"></div>
   </div>
 
   <div class="card" id="cardConvert" style="display:none;">
-    <h2><span class="step">4</span>Enable search + coverage map</h2>
+    <h2>Enable search + coverage map</h2>
     <p class="muted">Converts only <code>PRODUCT.NDS</code> (~100 MB) into
        <code>_work/</code>; the heavy region databases are <b>not</b> converted.
        One-time, then directly available again.</p>
@@ -146,7 +172,7 @@
   </div>
 
   <div class="card" id="cardCoverage" style="display:none;">
-    <h2><span class="step">5</span>Coverage map</h2>
+    <h2>Coverage map</h2>
     <div class="row">
       <button class="ghost" onclick="showCoverage(false)">Show map</button>
       <button class="ghost" onclick="showCoverage(true)">Re-render</button>
@@ -159,7 +185,7 @@
   </div>
 
   <div class="card" id="cardSearch" style="display:none;">
-    <h2><span class="step">6</span>Search place name</h2>
+    <h2>Search place name</h2>
     <div class="row">
       <input type="text" id="inQ" placeholder="e.g. Nijmegen" onkeydown="if(event.key==='Enter')doSearch()">
       <select id="selMode">
@@ -175,17 +201,21 @@
       <tbody></tbody>
     </table>
   </div>
+  </section>
 
+  <section class="tabpanel" id="tab-update">
   <div class="card" id="cardUpdates">
-    <h2><span class="step">7</span>Update-check &amp; download</h2>
+    <h2>Update-check &amp; download</h2>
     <p class="muted">Known releases with direct download links on the VW server
        (<a href="https://www.seatcupra.net/forums/threads/updating-the-inbuilt-mib2-satnav-mib2-tricks-and-mib1.388586/page-165" target="_blank" rel="noopener">source: SEATCUPRA.NET p.165</a>).
        Downloaded files land in <code>downloads/</code> and become directly
-       selectable in step 2. The SD-updater (step 8) installs from that same folder.</p>
+       selectable in the Map tab. The SD-updater below installs from that same folder.
+       <b>Check online status</b> verifies the known links (the VW server only keeps the
+       newest release); <b>Find new releases</b> probes the official VW URL pattern for
+       anything newer and adds it to the registry.</p>
     <div class="row">
-      <button class="ghost" onclick="loadUpdates(true)">Refresh status (online check)</button>
-      <button class="ghost" onclick="loadUpdates(false)">Local list only</button>
-      <button onclick="discoverReleases()">Search for new VW releases</button>
+      <button class="ghost" onclick="loadUpdates(true)">Check online status</button>
+      <button onclick="discoverReleases()">Find new releases</button>
       <span id="updInfo" class="muted"></span>
     </div>
     <div id="updDiscover" class="info" style="display:none;"></div>
@@ -196,12 +226,13 @@
   </div>
 
   <div class="card" id="cardSd">
-    <h2><span class="step">8</span>Update SD card (cardreader)</h2>
+    <h2>Update SD card (cardreader)</h2>
     <p class="muted">Choose a local package from <code>downloads/</code>. The card is
        first fully backed up to <code>BACKUP/SDcard_&lt;date&gt;/</code>, then the
        existing <code>maps/</code> are replaced and, if your profile says so
        (<code>car.workaround</code>), <code>maps/EEC/EEC_WLD/OVERALL.NDS</code>
        is restored to the original from the original release.</p>
+    <div id="sdPlan" class="info"></div>
     <div id="sdStatus" class="info"></div>
     <div class="row">
       <select id="selSdSource" style="flex:1; min-width:200px;" onchange="onSdSourceChange()">
@@ -221,9 +252,11 @@
     <pre id="sdLog" style="display:none;"></pre>
     <div id="sdChecklist" class="msg warn" style="display:none;"></div>
   </div>
+  </section>
 
+  <section class="tabpanel" id="tab-maint">
   <div class="card" id="cardCleanup">
-    <h2><span class="step">9</span>Cleanup (temporary map data)</h2>
+    <h2>Cleanup (temporary map data)</h2>
     <p class="muted">Only removes derived/extracted data from <code>_work/</code> and
        extracted map folders. <b>Never</b>: <code>BACKUP/</code>, <code>*.zip</code>,
        <code>*.7z</code> or <code>*.img</code>.</p>
@@ -235,13 +268,14 @@
     </div>
     <div id="cleanupBody"></div>
   </div>
+  </section>
 
 </main>
 
 <div id="browseModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; align-items:center; justify-content:center;">
   <div style="background:var(--card); border:1px solid #334155; border-radius:10px; padding:16px 18px; width:min(640px, 92vw); max-height:82vh; display:flex; flex-direction:column;">
     <div class="row" style="justify-content:space-between; align-items:center;">
-      <h2 style="margin:0; font-size:16px;">Select a folder</h2>
+      <h2 id="browseModalTitle" style="margin:0; font-size:16px;">Select a folder</h2>
       <button class="ghost" onclick="closeBrowse()">Close</button>
     </div>
     <div id="browsePath" class="muted" style="margin:8px 0; word-break:break-all; font-size:13px;"></div>
@@ -293,6 +327,13 @@ function esc(s) {
     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 
+function switchTab(name) {
+  document.querySelectorAll(".tabs button").forEach(b =>
+    b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tabpanel").forEach(p =>
+    p.classList.toggle("active", p.id === "tab-" + name));
+}
+
 /* ---- step 1: car profile (auto-setup from SD card / backup) ---- */
 let prof = null;
 let profOverallSrc = null;
@@ -330,7 +371,13 @@ async function loadProfile() {
     st.className = "info";
     st.textContent = "Configured: " + d.config_source
       + (d.overall_backup_present
-         ? " (OVERALL.NDS backup present)" : " (no OVERALL.NDS backup)");
+         ? " (OVERALL.NDS backup present)" : " (no OVERALL.NDS backup)")
+      + " - the fields below are loaded from the saved profile; use Detect or "
+      + "Browse to refresh them from an SD card or a backup.";
+    prof = d.car || null;
+    profOverallSrc = null;
+    document.getElementById("profForm").style.display = prof ? "" : "none";
+    if (prof) profInputs();
   } else {
     st.className = "msg warn";
     st.textContent = "No car profile configured yet. First-time setup: detect "
@@ -456,15 +503,33 @@ async function detectFrom(path) {
 let browsePath = "";
 let browseParent = null;
 let browseDrives = null;
+let browseFor = "profile";
 
 function showBrowse(show) {
   document.getElementById("browseModal").style.display = show ? "flex" : "none";
 }
 
 function openBrowse() {
+  browseFor = "profile";
   browsePath = "";
   showBrowse(true);
   loadBrowse();
+  setBrowseButton();
+}
+
+function openBrowseMap() {
+  browseFor = "map";
+  browsePath = "";
+  showBrowse(true);
+  loadBrowse();
+  setBrowseButton();
+}
+
+function setBrowseButton() {
+  document.getElementById("browseModalTitle").textContent =
+    browseFor === "map" ? "Select a map folder" : "Select a folder";
+  document.getElementById("btnBrowsePick").textContent =
+    browseFor === "map" ? "Use this folder" : "Detect from this folder";
 }
 
 function closeBrowse() {
@@ -521,12 +586,19 @@ async function loadBrowse() {
 
 async function pickBrowse() {
   if (!browsePath) {
-    setMsg(document.getElementById("profResult"), "err",
-      "Go into a folder first, then press 'Detect from this folder'.");
+    const el = browseFor === "map"
+      ? document.getElementById("selStatus") : document.getElementById("profResult");
+    setMsg(el, "err", "Go into a folder first, then press the select button.");
     return;
   }
   closeBrowse();
-  await detectFrom(browsePath);
+  if (browseFor === "map") {
+    document.getElementById("selCand").value = "";
+    document.getElementById("inPath").value = browsePath;
+    loadMap();
+  } else {
+    await detectFrom(browsePath);
+  }
 }
 
 async function saveProfile() {
@@ -559,12 +631,19 @@ async function saveProfile() {
   loadProfile();
 }
 
+function loadManual() {
+  document.getElementById("selCand").value = "";
+  loadMap();
+}
+
 async function loadMap() {
   const sel = document.getElementById("selCand");
   const path = (sel.value || document.getElementById("inPath").value.trim());
   if (!path) { setMsg(document.getElementById("selStatus"), "err", "Choose a map or type a path."); return; }
   const st = document.getElementById("selStatus");
-  setMsgHTML(st, "ok", '<span class="spinner"></span>Validating...');
+  setMsgHTML(st, "ok", '<span class="spinner"></span>Loading '
+    + esc(path.split(/[\\/]+/).pop())
+    + " &mdash; validating, checking coverage and compatibility...");
   const d = await api("/api/select", {method:"POST",
       headers:{"Content-Type":"application/json"}, body:JSON.stringify({path})});
   if (!d.ok) {
@@ -673,11 +752,10 @@ function renderCompat(c) {
       + esc(c.missing.map(m => m + " (" + (currentCountries[m] || m) + ")").join(", "))
       + "</b></div>";
   }
-  html += "<h3>Installation</h3><ol>";
-  for (const s of c.install.steps) {
-    html += "<li>" + esc(s) + "</li>";
-  }
-  html += "</ol>";
+  html += "<h3>Installation</h3>"
+    + '<p class="muted">This map is installed automatically from the Update tab '
+    + "(backup, copy, OVERALL.NDS workaround and verify are handled there).</p>"
+    + "<button onclick=\"installThisMap()\">Install in the Update tab</button>";
   if (!c.install.overall_backup_present) {
     html += '<div class="msg warn">OVERALL.NDS backup not found: '
       + esc(c.install.overall_backup) + "</div>";
@@ -948,7 +1026,9 @@ async function loadUpdates(check) {
       : '<span class="muted">—</span>';
     let action;
     if (p.local) {
-      action = '<button class="ghost" onclick="openLocal(\'' + esc(p.local) + '\')">Open</button>';
+      action = '<button class="ghost" onclick="viewMap(this,\'' + esc(p.local) + '\')">View</button>'
+        + ' <button class="ghost" title="Load this package into the SD-updater below" '
+        + "onclick=\"selectForSd('" + esc(p.local) + "')\">SD</button>";
     } else if (p.online) {
       action = '<button onclick="startDownload(\'' + esc(p.url) + '\')">Download</button>';
     } else {
@@ -973,13 +1053,16 @@ async function loadUpdates(check) {
   setMsg(info, "ok", "List loaded.");
 }
 
-async function openLocal(path) {
+async function viewMap(btn, path) {
+  if (btn) btn.disabled = true;
+  switchTab("map");
   const sel = document.getElementById("selCand");
   const inPath = document.getElementById("inPath");
   sel.value = path;
   inPath.value = "";
-  await loadMap();
-  document.getElementById("cardResult").scrollIntoView({ behavior: "smooth" });
+  document.getElementById("cardSelect").scrollIntoView({ behavior: "smooth" });
+  try { await loadMap(); }
+  finally { if (btn) btn.disabled = false; }
 }
 
 async function discoverReleases() {
@@ -994,7 +1077,7 @@ async function discoverReleases() {
   if (!d.ok) { setMsg(info, "err", d.error); box.style.display = "none"; return; }
   await pollGeneric(d.job, "dlFill", "dlLog",
     st => setMsg(info, "ok", "Searching... "
-      + Math.round(100 * st.done / (st.total || 1)) + "%"),
+      + Math.min(100, Math.round(100 * st.done / (st.total || 1))) + "%"),
     err => setMsg(info, "err", err));
   const st = await api("/api/status/" + d.job);
   if (st.state !== "done") {
@@ -1052,7 +1135,7 @@ async function startDownload(url) {
   if (!d.ok) { setMsg(document.getElementById("dlStatus"), "err", d.error); return; }
   await pollGeneric(d.job, "dlFill", "dlLog",
     st => setMsg(document.getElementById("dlStatus"), "ok",
-      "Downloading... " + Math.round(100 * st.done / (st.total || 1)) + "%"),
+      "Downloading... " + Math.min(100, Math.round(100 * st.done / (st.total || 1))) + "%"),
     err => setMsg(document.getElementById("dlStatus"), "err", err));
   const st = await api("/api/status/" + d.job);
   if (st.state === "done") {
@@ -1102,6 +1185,14 @@ async function loadSd(scan) {
     status.innerHTML = '<span class="tag no">No MIB2 SD card found.</span> '
       + "Insert the card into the cardreader and mount the partition (maps/00/nds/dbinfo.txt).";
   }
+  const planEl = document.getElementById("sdPlan");
+  planEl.innerHTML = "<b>What the updater does</b> (automated): full backup of the card "
+    + "to <code>BACKUP/SDcard_&lt;date&gt;/</code>, clear <code>maps/</code>, copy the new "
+    + "maps, apply the OVERALL.NDS workaround, verify checksums."
+    + (d.manual_steps && d.manual_steps.length
+        ? "<br><b>After the copy (in the car):</b><ol>"
+          + d.manual_steps.map(s => "<li>" + esc(s) + "</li>").join("") + "</ol>"
+        : "");
   const sd = await api("/api/sd/sources");
   if (!sd.ok) { document.getElementById("sdInfo").textContent = "error: " + sd.error; return; }
   sdSources = sd.sources;
@@ -1124,6 +1215,30 @@ function onSdSourceChange() {
     + (s.verdict ? " · verdict: <b>" + esc(s.verdict) + "</b>" : "")
     + (s.missing && s.missing.length ? " · missing: " + esc(s.missing.join(", ")) : "")
     + (s.error ? '<div class="msg err">' + esc(s.error) + "</div>" : "");
+}
+
+async function selectForSd(path) {
+  switchTab("update");
+  if (!sdSources.length) { await loadSd(false); }
+  const sel = document.getElementById("selSdSource");
+  let found = Array.from(sel.options).some(o => o.value === path);
+  if (!found) {
+    await loadSd(false);   // re-scan sources (e.g. a fresh download)
+    found = Array.from(sel.options).some(o => o.value === path);
+  }
+  if (!found) {
+    alert("This package is not available to the SD-updater: it only installs local "
+      + "packages from downloads/ or extracted/.");
+    return;
+  }
+  sel.value = path;
+  onSdSourceChange();
+  document.getElementById("cardSd").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function installThisMap() {
+  if (!currentPath) { switchTab("update"); return; }
+  selectForSd(currentPath);
 }
 
 function toggleDryRun() {
@@ -1250,6 +1365,7 @@ loadUpdates(false);
 loadSd(false);
 loadCleanup();
 loadProfile();
+loadUpdates(true);   // auto online status check; the cached list shows first
 
 /* ---- local: stop server + closing warning ---- */
 const IS_LOOPBACK = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(location.hostname);

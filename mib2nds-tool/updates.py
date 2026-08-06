@@ -232,6 +232,7 @@ def discover_new(add: bool = False, progress=None) -> dict:
             current_max = max(current_max, int(m.group(1)))
     paths, vers, build = _discover_candidates()
     total = len(paths) * len(vers)
+    done = 0
     checked = 0
     found = []
     seen = set()
@@ -240,16 +241,15 @@ def discover_new(add: bool = False, progress=None) -> dict:
             canary = f"{VW_BASE}{yp}/DiscoverMedia2_{CANARY_REGION}_{v}_{build}.7z"
             ok, _size = http_probe(canary)
             checked += 1
+            done += 1
             if progress:
-                progress(checked, total)
+                progress(done, total)
             if not ok:
                 continue
             for region in REGIONS:
                 url = (f"{VW_BASE}{yp}/DiscoverMedia2_{region}_{v}_{build}.7z")
                 ok2, size2 = http_probe(url)
                 checked += 1
-                if progress:
-                    progress(checked, total)
                 if not ok2 or url in seen:
                     continue
                 seen.add(url)

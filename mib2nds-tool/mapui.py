@@ -92,7 +92,10 @@ def _find_candidates():
 @app.get("/")
 def index():
     return render_template("map.html", candidates=_find_candidates(),
-                           root=mapdata.PROJECT_ROOT)
+                           root=mapdata.PROJECT_ROOT,
+                           downloads=mapdata.DOWNLOAD_DIR,
+                           extracted=mapdata.EXTRACTED_DIR,
+                           version=mapdata.__version__)
 
 
 @app.get("/api/maps")

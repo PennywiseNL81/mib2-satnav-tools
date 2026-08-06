@@ -530,6 +530,8 @@ def cmd_install(args) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {mapdata.__version__}")
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("detect", help="show the detected SD card")
     sub.add_parser("list", help="list available packages")

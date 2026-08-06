@@ -268,6 +268,8 @@ def cmd_compat(args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {mapdata.__version__}")
     ap.add_argument("--db", default=ndsgeo.DEFAULT_PRODUCT_DB,
                     help="path to the converted PRODUCT/PRODUCT.sqlite")
     ap.add_argument("--map", default=None,
