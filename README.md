@@ -115,8 +115,8 @@ borders). They differ in **how the source code arrives**:
 - **Standalone, no git needed** — download the installer once, then run it
   (optionally into a specific folder). It pulls the repo archive from GitHub
   itself and sets everything up. You get a plain snapshot without `.git/`
-  history (updates = download the installer again and re-run it in a fresh
-  folder):
+  history (updates = download the installer again and re-run it in the same
+  folder; see [Updating](#updating)):
 
   ```bash
   curl -fsSL https://raw.githubusercontent.com/pennywiseNL81/mib2-satnav-tools/main/install.py -o install.py
@@ -155,6 +155,30 @@ mib2nds-tool/.venv/bin/python mib2nds-tool/query.py --map DiscoverMedia2_EU-DL2_
 
 On Windows the venv interpreter is `mib2nds-tool\.venv\Scripts\python.exe`
 (the `.sh` launchers have `.bat` equivalents).
+
+## Updating
+
+Updates never touch your car profile or map data: the personal profile lives
+in `config.local.json` (or the `MIB2_CONFIG` target), which is never part of
+a package download, and `downloads/`, `_work/` and `BACKUP/` are kept too.
+Check `CHANGELOG.md` for what changed, and confirm your version with
+`query.py --version` (or the version in the web UI header). Releases are
+tagged and listed at
+[Releases](https://github.com/pennywiseNL81/mib2-satnav-tools/releases).
+
+| Installed via | Update |
+|---|---|
+| `./setup.sh` / `setup.bat` (git checkout) | `git pull`, then re-run `./setup.sh` (refreshes dependencies), then restart the UI |
+| Manual clone | `git pull`, then `mib2nds-tool/.venv/bin/pip install -r requirements.txt` (if dependencies changed), then restart the UI |
+| Standalone `install.py` (no git) | download `install.py` again and re-run it in the **same** folder — it pulls the latest snapshot in place and keeps `config.local.json`, `downloads/` and `BACKUP/` |
+
+After updating, restart the UI: stop and re-run `./start-mapui.sh`
+(`start-mapui.bat` on Windows), or restart the service that runs it.
+
+If you prefer to install into a *new* folder anyway, point the tool at your
+existing profile with `MIB2_CONFIG` (see
+[Configuration](#configuration)) or copy `config.local.json` over — no
+profile re-setup needed.
 
 ## CLI
 

@@ -86,7 +86,7 @@
 </head>
 <body>
 <header>
-  <h1>MIB2 Map checker <span class="muted" style="font-size:13px;font-weight:400;">v{{ version }}</span></h1>
+  <h1>MIB2 Map checker <span class="muted" style="font-size:13px;font-weight:400;"><a href="https://github.com/PennywiseNL81/mib2-satnav-tools/releases" target="_blank" rel="noopener" style="color:inherit;" title="Tool releases">v{{ version }}</a></span></h1>
   <p>Check a downloaded map (folder with <code>maps/</code>, <code>.zip</code> or
      <code>.7z</code>): compatibility with your profile, instant country coverage,
      search + coverage map after a one-time conversion. Plus update-check,
@@ -291,6 +291,7 @@
 
 <footer id="serverFooter">
   <span>Local server running on <code id="serverHost"></code>.</span>
+  <span class="muted">Tool v{{ version }} &middot; update via <code>git pull</code> (git install) or re-run <code>install.py</code> (standalone) &middot; <a href="https://github.com/PennywiseNL81/mib2-satnav-tools/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG</a> &middot; <a href="https://github.com/PennywiseNL81/mib2-satnav-tools/releases" target="_blank" rel="noopener">Releases</a></span>
   <button class="ghost" onclick="stopServer()">Stop server</button>
 </footer>
 <script>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """install.py -- one-command setup for mib2-satnav-tools.
 
-- ensures the tool source is present (inside a checkout: nothing; run
+- ensures the tool source is present (inside a git checkout: nothing; run
   standalone: pulls the repo archive from GitHub),
 - creates a venv at mib2nds-tool/.venv and installs requirements.txt,
 - checks for the 7-Zip binary (only needed for .7z packages) and prints
@@ -15,6 +15,10 @@ Usage:
     python install.py [folder]        # standalone: pull the repo into <folder>
                                       # (default: current directory)
     MIB2_REPO_URL=<github-url> python install.py [folder]  # pull from a fork
+
+A standalone install has no .git/, so re-running this in the same folder
+updates the source in place and keeps your config.local.json, downloads/
+and BACKUP/. Inside a real git checkout, update with git pull instead.
 
 The Python running this must be 3.10+ (pure stdlib, no dependencies).
 """
@@ -59,7 +63,11 @@ def _venv_python(venv_dir: str) -> str:
 
 
 def is_checkout(root: str) -> bool:
-    return os.path.isfile(os.path.join(root, "mib2nds-tool", "mapui.py"))
+    """True for a real git checkout (.git present). A standalone install has
+    no .git, so re-running install.py in it pulls the latest snapshot over
+    the existing files (an in-place update) instead of being mistaken for a
+    checkout."""
+    return os.path.isdir(os.path.join(root, ".git"))
 
 
 def _zipball_url(url: str) -> str:

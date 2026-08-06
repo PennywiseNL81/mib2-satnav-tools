@@ -5,6 +5,25 @@ Releases follow [Semantic Versioning](https://semver.org/) and are tagged
 with a `v` prefix (`v0.1.0`); tags and notes are managed via the GitHub
 Releases section.
 
+## [Unreleased]
+
+### Changed
+
+- Standalone installs (`install.py`) now update in place: `is_checkout()` is
+  detected by `.git/` instead of the presence of `mib2nds-tool/mapui.py`, so
+  re-running the installer in the same folder pulls the latest snapshot and
+  keeps `config.local.json`, `downloads/` and `BACKUP/`. Git checkouts are
+  unaffected and still update via `git pull`.
+
+### Docs
+
+- README: new **Updating** section (update path per install option) and the
+  standalone-install wording corrected ("same folder" instead of
+  "fresh folder").
+- Web UI: the footer shows how to update the tool, and the version in the
+  header links to the GitHub Releases page.
+- AGENTS.md: note on standalone in-place updates.
+
 ## [0.1.0] - 2026-08-06
 
 First tagged release. The web UI moves from a numbered step-by-step layout

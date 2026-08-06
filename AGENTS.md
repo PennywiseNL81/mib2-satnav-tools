@@ -132,6 +132,11 @@ way.
   files afterwards.
 - Personal profiles and map-archive copies are never committed; keep them in
   `config.json` and outside the repo.
+- Standalone installs (`install.py`, no `.git`) update in place: re-running
+  the installer in the same folder pulls the latest snapshot and keeps
+  `config.local.json`, `downloads/` and `BACKUP/`; a git checkout updates via
+  `git pull`. `is_checkout()` detects a git checkout by `.git/`, not by the
+  presence of `mib2nds-tool/mapui.py`.
 - Run the smoke tests after changes (`tests/fixtures/mini_map` + CI workflow
   in `.github/workflows/test.yml`): compile every module and exercise the
   fixture through `query.py compat` and `update_sd.py install --dry-run`.
